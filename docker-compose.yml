@@ -1,0 +1,9 @@
+services:
+
+  vignesh-ui:
+    volumes:
+      - ./:/app/
+    ports:
+      - 3000:3000
+    build:
+      context: ./
