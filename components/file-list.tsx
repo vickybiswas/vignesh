@@ -1,7 +1,12 @@
-import { useState, useRef } from "react"
+"use client"
+
+import type React from "react"
+
+import { useState, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Plus, Upload } from "lucide-react"
+import { Plus, Upload, Download, Trash } from "lucide-react"
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu"
 
 interface FileListProps {
   files: string[]
@@ -9,9 +14,19 @@ interface FileListProps {
   onSelectFile: (file: string) => void
   onAddFile: (fileName: string, content: string) => void
   onUploadFile: (file: File) => void
+  onSaveFile: (fileName: string) => void
+  onRemoveFile: (fileName: string) => void
 }
 
-export function FileList({ files, activeFile, onSelectFile, onAddFile, onUploadFile }: FileListProps) {
+export function FileList({
+  files,
+  activeFile,
+  onSelectFile,
+  onAddFile,
+  onUploadFile,
+  onSaveFile,
+  onRemoveFile,
+}: FileListProps) {
   const [newFileName, setNewFileName] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -29,19 +44,37 @@ export function FileList({ files, activeFile, onSelectFile, onAddFile, onUploadF
     }
   }
 
+  const handleContextMenu = useCallback((e: React.MouseEvent, fileName: string) => {
+    e.preventDefault()
+  }, [])
+
   return (
     <div className="w-64 border-r p-4 h-full flex flex-col">
       <h2 className="text-lg font-semibold mb-4">Files</h2>
       <ul className="space-y-2 flex-grow overflow-auto">
         {files.map((file) => (
           <li key={file}>
-            <Button
-              variant={file === activeFile ? "secondary" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => onSelectFile(file)}
-            >
-              {file}
-            </Button>
+            <ContextMenu>
+              <ContextMenuTrigger asChild>
+                <Button
+                  variant={file === activeFile ? "secondary" : "ghost"}
+                  className="w-full justify-start"
+                  onClick={() => onSelectFile(file)}
+                >
+                  {file}
+                </Button>
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                <ContextMenuItem onClick={() => onSaveFile(file)}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Save to PC
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => onRemoveFile(file)}>
+                  <Trash className="mr-2 h-4 w-4" />
+                  Remove
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
           </li>
         ))}
       </ul>
@@ -67,4 +100,3 @@ export function FileList({ files, activeFile, onSelectFile, onAddFile, onUploadF
     </div>
   )
 }
-

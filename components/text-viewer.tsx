@@ -19,64 +19,55 @@ import { TabulationView } from "./tabulation-view"
 import { FileList } from "./file-list"
 import { UserDropdown } from "./user-dropdown"
 import { HighlightedTextViewer } from "./highlighted-text-viewer"
-import { Search, Save, Table, X } from "lucide-react"
+import { Search, Save, Table, X, Download, Upload, BookOpen } from "lucide-react"
+import { generatePastelColor } from "@/utils/colors"
+import type { AppState, Marking, File, Position } from "@/types"
+import { SynonymsPopup } from "./synonyms-popup"
 
-interface Tag {
-  id: number
-  text: string
-  start: number
-  end: number
-  label: string
-  color: string
-}
-
-interface FileData {
-  content: string
-  tags: Tag[]
-}
-
-interface SearchResult {
-  text: string
-  start: number
-  end: number
-}
-
-const TAG_COLORS = [
-  "bg-yellow-200",
-  "bg-blue-200",
-  "bg-green-200",
-  "bg-pink-200",
-  "bg-purple-200",
-  "bg-orange-200",
-  "bg-red-200",
-  "bg-indigo-200",
-]
+const LOCAL_STORAGE_KEY = "textViewerState"
 
 export default function TextViewer() {
-  const [files, setFiles] = useState<Record<string, FileData>>({
-    "sample.txt": {
-      content:
-        "This is a sample text. You can right-click on any part of this text to add tags to it, including overlapping tags.",
-      tags: [],
-    },
+  const [state, setState] = useState<AppState>(() => {
+    if (typeof window !== "undefined") {
+      const savedState = localStorage.getItem(LOCAL_STORAGE_KEY)
+      if (savedState) {
+        return JSON.parse(savedState)
+      }
+    }
+    return {
+      markings: [],
+      files: {
+        "sample.txt": {
+          name: "sample.txt",
+          dirty: false,
+          positions: {},
+          content:
+            "This is a sample text. You can right-click on any part of this text to add tags to it, including overlapping tags.",
+        },
+      },
+      tabulations: [],
+      activeFile: "sample.txt",
+    }
   })
-  const [activeFile, setActiveFile] = useState<string>("sample.txt")
-  const [selection, setSelection] = useState<{ start: number; end: number } | null>(null)
+
+  const [selection, setSelection] = useState<{ start: number; stop: number } | null>(null)
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null)
   const [newTagLabel, setNewTagLabel] = useState<string>("")
   const [isNewTagDialogOpen, setIsNewTagDialogOpen] = useState<boolean>(false)
   const [selectedTagFilter, setSelectedTagFilter] = useState<string>("all")
   const [searchTerm, setSearchTerm] = useState<string>("")
-  const [savedSearches, setSavedSearches] = useState<string[]>([])
   const [showTabulationView, setShowTabulationView] = useState<boolean>(false)
-  const [rowSelections, setRowSelections] = useState<string[]>([])
-  const [columnSelections, setColumnSelections] = useState<string[]>([])
-  const [highlightedTag, setHighlightedTag] = useState<string | null>(null)
-  const [highlightedSearch, setHighlightedSearch] = useState<string | null>(null)
-  const [highlightedSpecificSearch, setHighlightedSpecificSearch] = useState<SearchResult | null>(null)
+  const [showSynonymsPopup, setShowSynonymsPopup] = useState<boolean>(false)
+  const [synonyms, setSynonyms] = useState<string[]>([])
+  const [isFetchingSynonyms, setIsFetchingSynonyms] = useState<boolean>(false)
   const contentRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const activeFileData = files[activeFile]
+  const activeFile = state.files[state.activeFile]
+
+  useEffect(() => {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state))
+  }, [state])
 
   const handleContextMenu = useCallback((event: React.MouseEvent) => {
     event.preventDefault()
@@ -88,47 +79,59 @@ export default function TextViewer() {
     preSelectionRange.selectNodeContents(contentRef.current)
     preSelectionRange.setEnd(range.startContainer, range.startOffset)
     const start = preSelectionRange.toString().length
-    const end = start + selection.toString().length
+    const stop = start + selection.toString().length
 
-    if (start === end) return
+    if (start === stop) return
 
-    setSelection({ start, end })
+    setSelection({ start, stop })
     setContextMenuPosition({ x: event.clientX, y: event.clientY })
+  }, [])
+
+  const addMarking = useCallback((type: "search" | "tag", text: string) => {
+    const newMarking: Marking = {
+      id: `${type}-${Date.now()}`,
+      type,
+      text,
+      color: generatePastelColor(),
+    }
+
+    setState((prevState) => ({
+      ...prevState,
+      markings: [...prevState.markings, newMarking],
+    }))
+
+    return newMarking
   }, [])
 
   const addTag = useCallback(
     (label: string) => {
       if (!selection || !label.trim()) return
 
-      const selectedText = activeFileData.content.slice(selection.start, selection.end)
-      if (!selectedText.trim()) return
+      const newTag = addMarking("tag", label)
+      const selectedText = activeFile.content.slice(selection.start, selection.stop)
 
-      const existingLabels = new Set(Object.values(files).flatMap((file) => file.tags.map((t) => t.label)))
-      const tagColor = existingLabels.has(label)
-        ? Object.values(files)
-            .flatMap((file) => file.tags)
-            .find((t) => t.label === label)?.color
-        : TAG_COLORS[existingLabels.size % TAG_COLORS.length]
-
-      const newTag: Tag = {
-        id: Date.now(),
-        text: selectedText,
-        start: selection.start,
-        end: selection.end,
-        label,
-        color: tagColor || TAG_COLORS[0],
-      }
-      setFiles((prevFiles) => ({
-        ...prevFiles,
-        [activeFile]: {
-          ...prevFiles[activeFile],
-          tags: [...prevFiles[activeFile].tags, newTag],
+      setState((prevState) => ({
+        ...prevState,
+        files: {
+          ...prevState.files,
+          [state.activeFile]: {
+            ...prevState.files[state.activeFile],
+            positions: {
+              ...prevState.files[state.activeFile].positions,
+              [newTag.id]: [
+                ...(prevState.files[state.activeFile].positions[newTag.id] || []),
+                { text: selectedText, start: selection.start, stop: selection.stop },
+              ],
+            },
+          },
         },
+        markings: [...prevState.markings, newTag],
       }))
+
       setSelection(null)
       setContextMenuPosition(null)
     },
-    [activeFile, files, selection, activeFileData.content],
+    [state.activeFile, activeFile, selection, addMarking],
   )
 
   const handleNewTag = useCallback(() => {
@@ -143,123 +146,86 @@ export default function TextViewer() {
     }
   }, [addTag, newTagLabel])
 
-  const getFilteredTags = useCallback(() => {
-    if (selectedTagFilter === "all") return activeFileData.tags
-    return activeFileData.tags.filter((tag) => tag.label === selectedTagFilter)
-  }, [activeFileData.tags, selectedTagFilter])
+  const getFilteredMarkings = useCallback(() => {
+    if (selectedTagFilter === "all") return state.markings.filter((m) => m.type === "tag")
+    return state.markings.filter((m) => m.type === "tag" && m.text === selectedTagFilter)
+  }, [state.markings, selectedTagFilter])
 
   const searchResults = useMemo(() => {
     if (!searchTerm) return []
-    const results: SearchResult[] = []
-    let index = activeFileData.content.toLowerCase().indexOf(searchTerm.toLowerCase())
+
+    const searchMarking = state.markings.find((m) => m.type === "search" && m.text === searchTerm)
+    if (searchMarking) {
+      return activeFile.positions[searchMarking.id] || []
+    }
+
+    const results: Position[] = []
+    let index = activeFile.content.toLowerCase().indexOf(searchTerm.toLowerCase())
     while (index !== -1) {
       results.push({
-        text: activeFileData.content.slice(index, index + searchTerm.length),
+        text: activeFile.content.slice(index, index + searchTerm.length),
         start: index,
-        end: index + searchTerm.length,
+        stop: index + searchTerm.length,
       })
-      index = activeFileData.content.toLowerCase().indexOf(searchTerm.toLowerCase(), index + 1)
+      index = activeFile.content.toLowerCase().indexOf(searchTerm.toLowerCase(), index + 1)
     }
+
     return results
-  }, [activeFileData.content, searchTerm])
+  }, [state.markings, activeFile, searchTerm])
 
   const renderContent = useCallback(() => {
-    if (!activeFileData.content) return null
+    if (!activeFile.content) return null
 
     const segments: {
       text: string
+      marking: Marking | null
       isHighlighted: boolean
-      isSearchResult: boolean
-      tags: Tag[]
     }[] = []
 
     let lastIndex = 0
 
-    const addSegment = (end: number, isHighlighted = false, isSearchResult = false, tags: Tag[] = []) => {
+    const addSegment = (end: number, marking: Marking | null = null, isHighlighted = false) => {
       if (end > lastIndex) {
         segments.push({
-          text: activeFileData.content.slice(lastIndex, end),
+          text: activeFile.content.slice(lastIndex, end),
+          marking,
           isHighlighted,
-          isSearchResult,
-          tags,
         })
         lastIndex = end
       }
     }
 
-    // Add segments for tags
-    getFilteredTags().forEach((tag) => {
-      addSegment(tag.start)
-      addSegment(tag.end, tag.label === highlightedTag, false, [tag])
-    })
-
-    // Add segments for search results
-    searchResults.forEach((result) => {
-      addSegment(result.start)
-      addSegment(result.end, highlightedSearch === searchTerm || highlightedSpecificSearch === result, true)
+    // Add segments for all markings
+    state.markings.forEach((marking) => {
+      const positions = activeFile.positions[marking.id] || []
+      positions.forEach((position) => {
+        addSegment(position.start)
+        addSegment(position.stop, marking, marking.text === selectedTagFilter || marking.text === searchTerm)
+      })
     })
 
     // Add final segment
-    addSegment(activeFileData.content.length)
+    addSegment(activeFile.content.length)
 
     // Sort segments by start index
-    segments.sort((a, b) => a.start - b.start)
+    segments.sort((a, b) => a.text.length - b.text.length)
 
     return segments.map((segment, index) => {
-      let className = ""
-      if (segment.isSearchResult) className += "bg-yellow-200 "
-      if (segment.isHighlighted) className += "bg-green-200 "
-      if (segment.tags.length > 0) {
-        const topTag = segment.tags[segment.tags.length - 1]
-        className += topTag.color + " "
+      if (segment.marking) {
+        return (
+          <mark
+            key={index}
+            style={{ backgroundColor: segment.marking.color }}
+            className={segment.isHighlighted ? "bg-opacity-50" : ""}
+            title={segment.marking.text}
+          >
+            {segment.text}
+          </mark>
+        )
       }
-
-      return className ? (
-        <mark key={index} className={className.trim()} title={segment.tags.map((t) => t.label).join(", ")}>
-          {segment.text}
-        </mark>
-      ) : (
-        <span key={index}>{segment.text}</span>
-      )
+      return <span key={index}>{segment.text}</span>
     })
-  }, [
-    activeFileData.content,
-    getFilteredTags,
-    searchResults,
-    highlightedTag,
-    highlightedSearch,
-    highlightedSpecificSearch,
-    searchTerm,
-  ])
-
-  const getTagsForAnalysis = useCallback(() => {
-    const tagsByLabel: Record<string, Array<{ text: string; start: number; end: number }>> = {}
-
-    activeFileData.tags.forEach((tag) => {
-      if (!tagsByLabel[tag.label]) {
-        tagsByLabel[tag.label] = []
-      }
-      tagsByLabel[tag.label].push({
-        text: tag.text,
-        start: tag.start,
-        end: tag.end,
-      })
-    })
-
-    return tagsByLabel
-  }, [activeFileData.tags])
-
-  const getTagColors = useCallback(() => {
-    const colors: Record<string, string> = {}
-    Object.values(files).forEach((file) => {
-      file.tags.forEach((tag) => {
-        if (!colors[tag.label]) {
-          colors[tag.label] = tag.color
-        }
-      })
-    })
-    return colors
-  }, [files])
+  }, [activeFile.content, activeFile.positions, state.markings, selectedTagFilter, searchTerm])
 
   const handleSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault()
@@ -267,59 +233,73 @@ export default function TextViewer() {
   }, [])
 
   const saveSearch = useCallback(() => {
-    if (searchTerm && !savedSearches.includes(searchTerm)) {
-      setSavedSearches((prevSearches) => [...prevSearches, searchTerm])
+    if (searchTerm && !state.markings.some((m) => m.type === "search" && m.text === searchTerm)) {
+      const newSearchMarking = addMarking("search", searchTerm)
+      setState((prevState) => ({
+        ...prevState,
+        files: {
+          ...prevState.files,
+          [state.activeFile]: {
+            ...prevState.files[state.activeFile],
+            positions: {
+              ...prevState.files[state.activeFile].positions,
+              [newSearchMarking.id]: searchResults,
+            },
+          },
+        },
+      }))
     }
-  }, [searchTerm, savedSearches])
+  }, [searchTerm, state.markings, addMarking, state.activeFile, searchResults])
 
   const uniqueTagLabels = useMemo(() => {
-    const labels = new Set<string>()
-    Object.values(files).forEach((file) => {
-      file.tags.forEach((tag) => labels.add(tag.label))
-    })
-    return Array.from(labels)
-  }, [files])
+    return Array.from(new Set(state.markings.filter((m) => m.type === "tag").map((m) => m.text)))
+  }, [state.markings])
 
   const handleContentChange = useCallback(
     (newContent: string) => {
-      setFiles((prevFiles) => ({
-        ...prevFiles,
-        [activeFile]: {
-          ...prevFiles[activeFile],
-          content: newContent,
-          tags: prevFiles[activeFile].tags
-            .map((tag) => ({
-              ...tag,
-              start: newContent.indexOf(tag.text),
-              end: newContent.indexOf(tag.text) + tag.text.length,
-            }))
-            .filter((tag) => tag.start !== -1),
+      setState((prevState) => ({
+        ...prevState,
+        files: {
+          ...prevState.files,
+          [state.activeFile]: {
+            ...prevState.files[state.activeFile],
+            content: newContent,
+            dirty: true,
+          },
         },
       }))
     },
-    [activeFile],
+    [state.activeFile],
   )
 
   const handleSelectFile = useCallback((fileName: string) => {
-    setActiveFile(fileName)
+    setState((prevState) => ({
+      ...prevState,
+      activeFile: fileName,
+    }))
     setSelectedTagFilter("all")
     setSearchTerm("")
   }, [])
 
   const handleAddFile = useCallback(
     (fileName: string, content: string) => {
-      if (!files[fileName]) {
-        setFiles((prevFiles) => ({
-          ...prevFiles,
-          [fileName]: {
-            content,
-            tags: [],
+      if (!state.files[fileName]) {
+        setState((prevState) => ({
+          ...prevState,
+          files: {
+            ...prevState.files,
+            [fileName]: {
+              name: fileName,
+              dirty: true,
+              positions: {},
+              content,
+            },
           },
+          activeFile: fileName,
         }))
-        setActiveFile(fileName)
       }
     },
-    [files],
+    [state.files],
   )
 
   const handleUploadFile = useCallback(
@@ -335,31 +315,22 @@ export default function TextViewer() {
   )
 
   const handleTagClick = useCallback((label: string) => {
-    setHighlightedTag((prevTag) => (prevTag === label ? null : label))
-    setHighlightedSearch(null)
-    setHighlightedSpecificSearch(null)
+    setSelectedTagFilter((prevFilter) => (prevFilter === label ? "all" : label))
   }, [])
 
   const handleSearchClick = useCallback((search: string) => {
-    setHighlightedSearch((prevSearch) => (prevSearch === search ? null : search))
-    setHighlightedTag(null)
-    setHighlightedSpecificSearch(null)
+    setSearchTerm((prevSearch) => (prevSearch === search ? "" : search))
+    setSelectedTagFilter("all")
   }, [])
 
-  const handleSpecificSearchClick = useCallback((result: SearchResult) => {
-    setHighlightedSpecificSearch((prevResult) =>
-      prevResult?.start === result.start && prevResult?.end === result.end ? null : result,
-    )
-    setHighlightedTag(null)
-    setHighlightedSearch(null)
-
+  const handleSpecificSearchClick = useCallback((position: Position) => {
     // Scroll to the specific occurrence
     if (contentRef.current) {
       const range = document.createRange()
       const textNode = contentRef.current.firstChild
       if (textNode) {
-        range.setStart(textNode, result.start)
-        range.setEnd(textNode, result.end)
+        range.setStart(textNode, position.start)
+        range.setEnd(textNode, position.stop)
         const rect = range.getBoundingClientRect()
         const containerRect = contentRef.current.getBoundingClientRect()
         contentRef.current.scrollTo({
@@ -370,97 +341,257 @@ export default function TextViewer() {
     }
   }, [])
 
-  useEffect(() => {
-    const handleInput = (e: InputEvent) => {
-      if (e.inputType === "insertText" && contentRef.current) {
-        const selection = window.getSelection()
-        if (selection && selection.rangeCount > 0) {
-          const range = selection.getRangeAt(0)
-          const preCaretRange = range.cloneRange()
-          preCaretRange.selectNodeContents(contentRef.current)
-          preCaretRange.setEnd(range.endContainer, range.endOffset)
-          const caretOffset = preCaretRange.toString().length
-
-          const newContent =
-            activeFileData.content.slice(0, caretOffset - 1) + e.data + activeFileData.content.slice(caretOffset - 1)
-
-          setFiles((prevFiles) => ({
-            ...prevFiles,
-            [activeFile]: {
-              ...prevFiles[activeFile],
-              content: newContent,
-            },
-          }))
-
-          // Prevent default behavior to avoid repetition
-          e.preventDefault()
-        }
-      }
-    }
-
-    const contentElement = contentRef.current
-    contentElement?.addEventListener("beforeinput", handleInput as EventListener)
-    return () => {
-      contentElement?.removeEventListener("beforeinput", handleInput as EventListener)
-    }
-  }, [activeFile, activeFileData.content])
-
   const handleTagFilterChange = useCallback((value: string) => {
     setSelectedTagFilter(value)
-    if (value !== "all") {
-      setHighlightedTag(value)
-      setHighlightedSearch(null)
-      setHighlightedSpecificSearch(null)
-    } else {
-      setHighlightedTag(null)
-    }
+    setSearchTerm("")
   }, [])
 
   const handleTabulationOccurrenceSelect = useCallback(
-    (occurrence: { text: string; start: number; end: number; file: string }) => {
-      setActiveFile(occurrence.file)
-      setHighlightedSpecificSearch({
-        text: occurrence.text,
-        start: occurrence.start,
-        end: occurrence.end,
+    (occurrence: { text: string; start: number; stop: number; file: string }) => {
+      setState({
+        ...state,
+        activeFile: occurrence.file,
       })
+      handleSpecificSearchClick(occurrence)
+      setShowTabulationView(false)
+    },
+    [state, handleSpecificSearchClick], // Added state as a dependency
+  )
 
-      // Scroll to the specific occurrence
-      if (contentRef.current) {
-        const range = document.createRange()
-        const textNode = contentRef.current.firstChild
-        if (textNode) {
-          range.setStart(textNode, occurrence.start)
-          range.setEnd(textNode, occurrence.end)
-          const rect = range.getBoundingClientRect()
-          const containerRect = contentRef.current.getBoundingClientRect()
-          contentRef.current.scrollTo({
-            top: rect.top - containerRect.top - 50,
-            behavior: "smooth",
-          })
+  const handleDownloadState = useCallback(() => {
+    const stateToDownload = {
+      ...state,
+      tabulations: state.tabulations,
+    }
+    const stateString = JSON.stringify(stateToDownload, null, 2)
+    const blob = new Blob([stateString], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = "text-viewer-state.json"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }, [state])
+
+  const handleUploadState = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const content = e.target?.result as string
+        try {
+          const uploadedState = JSON.parse(content) as AppState
+          setState(uploadedState)
+        } catch (error) {
+          console.error("Error parsing uploaded state:", error)
+          alert("Invalid state file. Please upload a valid JSON file.")
         }
       }
+      reader.readAsText(file)
+    }
+  }, [])
+
+  const handleRemoveSearch = useCallback((searchToRemove: string) => {
+    setState((prevState) => ({
+      ...prevState,
+      markings: prevState.markings.filter((m) => !(m.type === "search" && m.text === searchToRemove)),
+    }))
+  }, [])
+
+  const handleSaveFile = useCallback(
+    (fileName: string) => {
+      const fileContent = state.files[fileName].content
+      const blob = new Blob([fileContent], { type: "text/plain;charset=utf-8" })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
     },
-    [],
+    [state.files],
+  )
+
+  const handleRemoveFile = useCallback((fileName: string) => {
+    setState((prevState) => {
+      const newFiles = { ...prevState.files }
+      delete newFiles[fileName]
+      const newActiveFile = fileName === prevState.activeFile ? Object.keys(newFiles)[0] : prevState.activeFile
+      return {
+        ...prevState,
+        files: newFiles,
+        activeFile: newActiveFile,
+      }
+    })
+  }, [])
+
+  const generateFallbackSynonyms = useCallback((term: string, text: string): string[] => {
+    // Simple algorithm to find related words in the text
+    const words = text
+      .toLowerCase()
+      .replace(/[^\w\s]/g, "")
+      .split(/\s+/)
+      .filter((word) => word.length > 3 && word !== term.toLowerCase())
+
+    // Deduplicate words
+    const uniqueWords = Array.from(new Set(words))
+      .filter((word) => word !== term.toLowerCase())
+      .slice(0, 5)
+
+    // Always ensure we have at least these fallback options
+    const fallbackOptions = ["sample", "text", "right", "click", "part", "tags", "overlapping"].filter(
+      (word) => word !== term.toLowerCase(),
+    )
+
+    // If we don't have enough words from the text, add some from our fallback list
+    if (uniqueWords.length < 2) {
+      // Add term-specific alternatives if available
+      if (term.toLowerCase() === "text") return ["document", "content", "writing", "passage", "material"]
+      if (term.toLowerCase() === "search") return ["find", "locate", "discover", "query", "lookup"]
+      if (term.toLowerCase() === "tag") return ["label", "mark", "category", "classify", "annotate"]
+      if (term.toLowerCase() === "sample") return ["example", "specimen", "instance", "case", "illustration"]
+
+      // Otherwise use words from the fallback options
+      return fallbackOptions.slice(0, 5)
+    }
+
+    return uniqueWords
+  }, [])
+
+  const fetchSynonyms = useCallback(async () => {
+    if (!searchTerm) return
+
+    setIsFetchingSynonyms(true)
+    setSynonyms([])
+    setShowSynonymsPopup(true)
+
+    try {
+      const response = await fetch("/api/synonyms", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ word: searchTerm }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch synonyms")
+      }
+
+      const data = await response.json()
+      let synonymsList = data.synonyms || []
+
+      // If API returns no synonyms, generate fallback suggestions from the text
+      if (!synonymsList || synonymsList.length === 0) {
+        synonymsList = generateFallbackSynonyms(searchTerm, activeFile.content)
+      }
+
+      setSynonyms(synonymsList)
+    } catch (error) {
+      console.error("Error fetching synonyms:", error)
+      // Use fallback synonyms
+      const fallbackSynonyms = generateFallbackSynonyms(searchTerm, activeFile.content)
+      setSynonyms(fallbackSynonyms)
+    } finally {
+      setIsFetchingSynonyms(false)
+    }
+  }, [searchTerm, activeFile.content, generateFallbackSynonyms])
+
+  const handleSaveSynonyms = useCallback(
+    (selectedSynonyms: string[]) => {
+      selectedSynonyms.forEach((synonym) => {
+        if (!state.markings.some((m) => m.type === "search" && m.text === synonym)) {
+          const newSearchMarking = addMarking("search", synonym)
+
+          // Find occurrences of the synonym in the active file
+          const results: Position[] = []
+          let index = activeFile.content.toLowerCase().indexOf(synonym.toLowerCase())
+          while (index !== -1) {
+            results.push({
+              text: activeFile.content.slice(index, index + synonym.length),
+              start: index,
+              stop: index + synonym.length,
+            })
+            index = activeFile.content.toLowerCase().indexOf(synonym.toLowerCase(), index + 1)
+          }
+
+          setState((prevState) => ({
+            ...prevState,
+            files: {
+              ...prevState.files,
+              [state.activeFile]: {
+                ...prevState.files[state.activeFile],
+                positions: {
+                  ...prevState.files[state.activeFile].positions,
+                  [newSearchMarking.id]: results,
+                },
+              },
+            },
+          }))
+        }
+      })
+      setShowSynonymsPopup(false)
+    },
+    [state.markings, state.activeFile, activeFile.content, addMarking],
   )
 
   return (
-    <div className="container mx-auto h-screen flex flex-col">
+    <div className="container mx-auto py-6 h-screen flex flex-col">
       <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">Vignesh - The Research Assistant</h1>
-        <UserDropdown />
+        <h1 className="text-2xl font-bold">Text File Viewer</h1>
+        <div className="flex items-center gap-2">
+          <Button onClick={handleDownloadState}>
+            <Download className="h-4 w-4 mr-2" />
+            Download State
+          </Button>
+          <Button onClick={() => fileInputRef.current?.click()}>
+            <Upload className="h-4 w-4 mr-2" />
+            Upload State
+          </Button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleUploadState}
+            style={{ display: "none" }}
+            accept=".json"
+          />
+          <UserDropdown />
+        </div>
       </div>
       <div className="flex flex-grow overflow-hidden">
         <FileList
-          files={Object.keys(files)}
-          activeFile={activeFile}
+          files={Object.keys(state.files)}
+          activeFile={state.activeFile}
           onSelectFile={handleSelectFile}
           onAddFile={handleAddFile}
           onUploadFile={handleUploadFile}
+          onSaveFile={handleSaveFile}
+          onRemoveFile={handleRemoveFile}
         />
         <div className="flex-grow grid gap-6 md:grid-cols-2 h-full overflow-hidden">
           <div className="flex flex-col">
             <div className="mb-4 flex gap-2">
+              <Select value={selectedTagFilter} onValueChange={handleTagFilterChange}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter tags..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Tags</SelectItem>
+                  {uniqueTagLabels.map((label) => (
+                    <SelectItem key={label} value={label} className="flex items-center gap-2">
+                      <div
+                        className={`w-3 h-3 rounded inline-block mr-2`}
+                        style={{ backgroundColor: state.markings.find((m) => m.text === label)?.color }}
+                      />
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <form onSubmit={handleSearch} className="flex-1 flex gap-2">
                 <div className="relative flex-1">
                   <Input
@@ -482,15 +613,25 @@ export default function TextViewer() {
                     </Button>
                   )}
                 </div>
-                <Button type="button" onClick={saveSearch} disabled={!searchTerm || savedSearches.includes(searchTerm)}>
+                <Button type="submit">
+                  <Search className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  onClick={saveSearch}
+                  disabled={!searchTerm || state.markings.some((m) => m.type === "search" && m.text === searchTerm)}
+                >
                   <Save className="h-4 w-4" />
+                </Button>
+                <Button type="button" onClick={fetchSynonyms} disabled={!searchTerm} title="Find synonyms">
+                  <BookOpen className="h-4 w-4" />
                 </Button>
               </form>
             </div>
             <HighlightedTextViewer
-              content={activeFileData.content}
-              highlightStart={highlightedSpecificSearch?.start ?? 0}
-              highlightEnd={highlightedSpecificSearch?.end ?? 0}
+              content={renderContent()}
+              highlightStart={0}
+              highlightEnd={0}
               onContentChange={handleContentChange}
               ref={contentRef}
               onContextMenu={handleContextMenu}
@@ -498,47 +639,37 @@ export default function TextViewer() {
           </div>
           <div className="space-y-6 overflow-auto">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Text Coding</h2>
+              <h2 className="text-2xl font-bold">Tag Analysis</h2>
               <Button onClick={() => setShowTabulationView(true)}>
                 <Table className="h-4 w-4 mr-2" />
                 Tabulate
               </Button>
             </div>
             <TagAnalysis
-              tags={getTagsForAnalysis()}
-              colors={getTagColors()}
+              tags={getFilteredMarkings()}
               onTagClick={handleTagClick}
-              onOccurrenceClick={(start, end) => {
-                handleSpecificSearchClick({ text: activeFileData.content.slice(start, end), start, end })
-              }}
-              highlightedTag={highlightedTag}
-              highlightedOccurrence={highlightedSpecificSearch}
+              onOccurrenceClick={handleSpecificSearchClick}
+              highlightedTag={selectedTagFilter}
             />
             <SearchAnalysis
-              content={activeFileData.content}
+              content={activeFile.content}
               currentSearchResults={searchResults}
-              savedSearches={savedSearches}
+              savedSearches={state.markings.filter((m) => m.type === "search").map((m) => m.text)}
               onSelectSearch={handleSearchClick}
               onSelectSpecificSearch={handleSpecificSearchClick}
-              highlightedSearch={highlightedSearch}
-              highlightedSpecificSearch={highlightedSpecificSearch}
-              onOccurrenceClick={(start, end) => {
-                handleSpecificSearchClick({ text: activeFileData.content.slice(start, end), start, end })
-              }}
+              onRemoveSearch={handleRemoveSearch}
+              highlightedSearch={searchTerm}
             />
           </div>
         </div>
       </div>
       {showTabulationView && (
         <TabulationView
-          files={files}
+          state={state}
           onClose={() => setShowTabulationView(false)}
-          rowSelections={rowSelections}
-          columnSelections={columnSelections}
-          setRowSelections={setRowSelections}
-          setColumnSelections={setColumnSelections}
-          savedSearches={savedSearches}
           onSelectOccurrence={handleTabulationOccurrenceSelect}
+          setState={setState}
+          activeFile={state.activeFile}
         />
       )}
       <DropdownMenu open={!!contextMenuPosition} onOpenChange={() => setContextMenuPosition(null)}>
@@ -555,7 +686,10 @@ export default function TextViewer() {
         <DropdownMenuContent>
           {uniqueTagLabels.map((label) => (
             <DropdownMenuItem key={label} onSelect={() => addTag(label)} className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded ${getTagColors()[label]}`} />
+              <div
+                className={`w-3 h-3 rounded`}
+                style={{ backgroundColor: state.markings.find((m) => m.text === label)?.color }}
+              />
               {label}
             </DropdownMenuItem>
           ))}
@@ -579,7 +713,15 @@ export default function TextViewer() {
           </div>
         </DialogContent>
       </Dialog>
+      {showSynonymsPopup && (
+        <SynonymsPopup
+          word={searchTerm}
+          synonyms={synonyms}
+          isLoading={isFetchingSynonyms}
+          onClose={() => setShowSynonymsPopup(false)}
+          onSave={handleSaveSynonyms}
+        />
+      )}
     </div>
   )
 }
-

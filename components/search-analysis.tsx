@@ -1,27 +1,20 @@
-"use client"
-
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { ChevronRight, Search, History } from "lucide-react"
+import { ChevronRight, Search, History, X } from "lucide-react"
 import { TextOccurrence } from "./text-occurrence"
-
-interface SearchResult {
-  text: string
-  start: number
-  end: number
-}
+import type { Position } from "@/types"
+import { Button } from "@/components/ui/button"
 
 interface SearchAnalysisProps {
   content: string
-  currentSearchResults: SearchResult[]
+  currentSearchResults: Position[]
   savedSearches: string[]
   onSelectSearch: (search: string) => void
-  onSelectSpecificSearch: (result: SearchResult) => void
-  onOccurrenceClick: (start: number, end: number) => void
+  onSelectSpecificSearch: (result: Position) => void
+  onRemoveSearch: (search: string) => void
   highlightedSearch: string | null
-  highlightedSpecificSearch: SearchResult | null
 }
 
 export function SearchAnalysis({
@@ -30,20 +23,19 @@ export function SearchAnalysis({
   savedSearches,
   onSelectSearch,
   onSelectSpecificSearch,
-  onOccurrenceClick,
+  onRemoveSearch,
   highlightedSearch,
-  highlightedSpecificSearch,
 }: SearchAnalysisProps) {
   const [expandedSavedSearch, setExpandedSavedSearch] = useState<string | null>(null)
 
-  const getSavedSearchResults = (searchTerm: string): SearchResult[] => {
-    const results: SearchResult[] = []
+  const getSavedSearchResults = (searchTerm: string): Position[] => {
+    const results: Position[] = []
     let index = content.toLowerCase().indexOf(searchTerm.toLowerCase())
     while (index !== -1) {
       results.push({
         text: content.slice(index, index + searchTerm.length),
         start: index,
-        end: index + searchTerm.length,
+        stop: index + searchTerm.length,
       })
       index = content.toLowerCase().indexOf(searchTerm.toLowerCase(), index + 1)
     }
@@ -76,11 +68,9 @@ export function SearchAnalysis({
                     key={index}
                     text={result.text}
                     start={result.start}
-                    end={result.end}
-                    isHighlighted={
-                      highlightedSpecificSearch?.start === result.start && highlightedSpecificSearch?.end === result.end
-                    }
-                    onClick={() => onOccurrenceClick(result.start, result.end)}
+                    stop={result.stop}
+                    isHighlighted={highlightedSearch === result.text}
+                    onClick={() => onSelectSpecificSearch(result)}
                   />
                 ))}
               </CollapsibleContent>
@@ -111,6 +101,17 @@ export function SearchAnalysis({
                         <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground">
                           {searchResults.length} {searchResults.length === 1 ? "occurrence" : "occurrences"}
                         </span>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="ml-2 h-6 w-6"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onRemoveSearch(search)
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
                       </CollapsibleTrigger>
                       <CollapsibleContent className="mt-2 space-y-2">
                         {searchResults.map((result, idx) => (
@@ -118,12 +119,9 @@ export function SearchAnalysis({
                             key={idx}
                             text={result.text}
                             start={result.start}
-                            end={result.end}
-                            isHighlighted={
-                              highlightedSpecificSearch?.start === result.start &&
-                              highlightedSpecificSearch?.end === result.end
-                            }
-                            onClick={() => onOccurrenceClick(result.start, result.end)}
+                            stop={result.stop}
+                            isHighlighted={highlightedSearch === search}
+                            onClick={() => onSelectSpecificSearch(result)}
                           />
                         ))}
                       </CollapsibleContent>
@@ -138,4 +136,3 @@ export function SearchAnalysis({
     </Card>
   )
 }
-

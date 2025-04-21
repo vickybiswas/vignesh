@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useMemo, useCallback, useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -10,159 +12,102 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { TextOccurrence } from "./text-occurrence"
-
-interface Tag {
-  id: number
-  text: string
-  start: number
-  end: number
-  label: string
-  color: string
-}
-
-interface FileData {
-  content: string
-  tags: Tag[]
-}
+import type { AppState, Position } from "@/types"
 
 interface TabulationViewProps {
-  files: Record<string, FileData>
+  state: AppState
   onClose: () => void
-  rowSelections: string[]
-  columnSelections: string[]
-  setRowSelections: (selections: string[]) => void
-  setColumnSelections: (selections: string[]) => void
-  savedSearches: string[]
-  onSelectOccurrence: (occurrence: { text: string; start: number; end: number; file: string }) => void
+  onSelectOccurrence: (occurrence: { text: string; start: number; stop: number; file: string }) => void
+  setState: React.Dispatch<React.SetStateAction<AppState>>
+  activeFile: string
 }
 
-type ExpansionType = "no-expand" | "sentence-expand" | "paragraph-expand"
+type ExpansionType = 0 | 1 | 2 // 0: None, 1: Sentence, 2: Paragraph
 
-interface Occurrence {
-  file: string
-  text: string
-  start: number
-  end: number
-}
-
-export function TabulationView({
-  files,
-  onClose,
-  rowSelections,
-  columnSelections,
-  setRowSelections,
-  setColumnSelections,
-  savedSearches,
-  onSelectOccurrence,
-}: TabulationViewProps) {
-  const [options, setOptions] = useState<string[]>([])
+export function TabulationView({ state, onClose, onSelectOccurrence, setState, activeFile }: TabulationViewProps) {
+  const [rowSelections, setRowSelections] = useState<string[]>(() => {
+    return state.tabulations[0]?.rows || []
+  })
+  const [columnSelections, setColumnSelections] = useState<string[]>(() => {
+    return state.tabulations[0]?.columns || []
+  })
   const [expansionType, setExpansionType] = useState<ExpansionType>(() => {
-    const stored = localStorage.getItem("expansionType")
-    return (stored as ExpansionType) || "no-expand"
+    return state.tabulations[0]?.extend_type || 0
   })
   const [selectedCell, setSelectedCell] = useState<{ row: string; col: string } | null>(null)
-  const [highlightedOccurrence, setHighlightedOccurrence] = useState<Occurrence | null>(null)
+  const [highlightedOccurrence, setHighlightedOccurrence] = useState<Position | null>(null)
 
   useEffect(() => {
-    localStorage.setItem("expansionType", expansionType)
-  }, [expansionType])
+    setState((prevState) => ({
+      ...prevState,
+      tabulations: [
+        {
+          rows: rowSelections,
+          columns: columnSelections,
+          extend_type: expansionType,
+        },
+        ...prevState.tabulations.slice(1),
+      ],
+    }))
+  }, [rowSelections, columnSelections, expansionType, setState])
 
-  useEffect(() => {
+  const options = useMemo(() => {
     const allOptions = new Set<string>()
-    Object.values(files).forEach((file) => {
-      file.tags.forEach((tag) => allOptions.add(tag.label))
+    state.markings.forEach((marking) => {
+      allOptions.add(marking.text)
     })
-    savedSearches.forEach((search) => allOptions.add(search))
-    setOptions(Array.from(allOptions))
-  }, [files, savedSearches])
-
-  const allTags = useMemo(() => {
-    return Object.values(files).flatMap((file) => file.tags)
-  }, [files])
-
-  const uniqueTagLabels = useMemo(() => Array.from(new Set(allTags.map((tag) => tag.label))), [allTags])
+    return Array.from(allOptions)
+  }, [state.markings])
 
   const getOccurrences = useCallback(
-    (term: string, isTag: boolean): Occurrence[] => {
-      let occurrences: Occurrence[] = []
+    (markingId: string): Position[] => {
+      let occurrences: Position[] = []
 
-      Object.entries(files).forEach(([fileName, fileData]) => {
-        if (isTag) {
-          const tagOccurrences = fileData.tags
-            .filter((tag) => tag.label === term)
-            .map((tag) => ({
-              file: fileName,
-              text: tag.text,
-              start: tag.start,
-              end: tag.end,
-            }))
-          occurrences = occurrences.concat(tagOccurrences)
-        } else {
-          let index = fileData.content.toLowerCase().indexOf(term.toLowerCase())
-          while (index !== -1) {
-            let start = index
-            let end = index + term.length
-
-            if (expansionType === "sentence-expand") {
-              start = fileData.content.lastIndexOf(".", index) + 1
-              if (start === 0) start = 0 // If no period found before, start from the beginning
-              end = fileData.content.indexOf(".", index + 1)
-              if (end === -1) end = fileData.content.length
-              // Trim leading and trailing whitespace
-              while (fileData.content[start] === " " && start < index) start++
-              while (fileData.content[end - 1] === " " && end > index + term.length) end--
-            } else if (expansionType === "paragraph-expand") {
-              start = fileData.content.lastIndexOf("\n\n", index) + 2
-              if (start === 1) start = 0 // If no double newline found before, start from the beginning
-              end = fileData.content.indexOf("\n\n", index)
-              if (end === -1) end = fileData.content.length
-            }
-
-            occurrences.push({
-              file: fileName,
-              text: fileData.content.slice(start, end),
-              start,
-              end,
-            })
-            console.log("start", start, "end", end, "file", fileName, "text", fileData.content.slice(start, end))
-            index = fileData.content.toLowerCase().indexOf(term.toLowerCase(), index + 1)
-          }
-        }
+      Object.entries(state.files).forEach(([fileName, fileData]) => {
+        const positions = fileData.positions[markingId] || []
+        occurrences = occurrences.concat(
+          positions.map((position) => ({
+            ...position,
+            file: fileName,
+          })),
+        )
       })
-
-      console.log("occurrences", occurrences)
 
       return occurrences
     },
-    [files, expansionType],
+    [state.files],
   )
 
   const tabulationData = useMemo(() => {
     if (rowSelections.length === 0 || columnSelections.length === 0) return null
 
-    const data: { [key: string]: { [key: string]: { count: number; occurrences: Occurrence[] } } } = {}
+    const data: { [key: string]: { [key: string]: { count: number; occurrences: Position[] } } } = {}
 
     rowSelections.forEach((row) => {
       data[row] = {}
-      const rowOccurrences = getOccurrences(row, uniqueTagLabels.includes(row))
+      const rowMarking = state.markings.find((m) => m.text === row)
+      if (!rowMarking) return
+
+      const rowOccurrences = getOccurrences(rowMarking.id)
 
       let rowTotal = 0
       columnSelections.forEach((col) => {
-        console.log("row", row, "col", col)
-        const colOccurrences = getOccurrences(col, uniqueTagLabels.includes(col))
+        const colMarking = state.markings.find((m) => m.text === col)
+        if (!colMarking) return
+
+        const colOccurrences = getOccurrences(colMarking.id)
 
         // Find intersections based on the expansion type
         const intersectionOccurrences = rowOccurrences.filter((rowOcc) =>
           colOccurrences.some((colOcc) => {
-            if (expansionType === "no-expand") {
+            if (expansionType === 0) {
               // Direct text overlap
               return (
-                colOcc.file === rowOcc.file && Math.max(rowOcc.start, colOcc.start) < Math.min(rowOcc.end, colOcc.end)
+                colOcc.file === rowOcc.file && Math.max(rowOcc.start, colOcc.start) < Math.min(rowOcc.stop, colOcc.stop)
               )
             } else {
-              console.log("rowOcc", rowOcc, "colOcc", colOcc, "file", rowOcc.file)
               // Same sentence/paragraph
-              return colOcc.file === rowOcc.file && colOcc.start === rowOcc.start && colOcc.end === rowOcc.end
+              return colOcc.file === rowOcc.file && colOcc.start === rowOcc.start && colOcc.stop === rowOcc.stop
             }
           }),
         )
@@ -180,18 +125,18 @@ export function TabulationView({
     // Add totals for columns
     data["Total"] = {}
     columnSelections.forEach((col) => {
-      const colTotal = rowSelections.reduce((total, row) => total + data[row][col].count, 0)
+      const colTotal = rowSelections.reduce((total, row) => total + (data[row][col]?.count || 0), 0)
       data["Total"][col] = { count: colTotal, occurrences: [] }
     })
 
     // Calculate grand total
     data["Total"]["Total"] = {
-      count: columnSelections.reduce((total, col) => total + data["Total"][col].count, 0),
+      count: columnSelections.reduce((total, col) => total + (data["Total"][col]?.count || 0), 0),
       occurrences: [],
     }
 
     return data
-  }, [rowSelections, columnSelections, uniqueTagLabels, getOccurrences, expansionType])
+  }, [rowSelections, columnSelections, state.markings, getOccurrences, expansionType])
 
   const exportToCSV = useCallback(() => {
     if (!tabulationData) return
@@ -226,14 +171,15 @@ export function TabulationView({
   }, [tabulationData, rowSelections, columnSelections])
 
   const handleOccurrenceClick = useCallback(
-    (occurrence: Occurrence) => {
+    (occurrence: Position & { file: string }) => {
       setHighlightedOccurrence(occurrence)
       onSelectOccurrence(occurrence)
+      onClose()
     },
-    [onSelectOccurrence],
+    [onSelectOccurrence, onClose],
   )
 
-  if (!files || Object.keys(files).length === 0) {
+  if (Object.keys(state.files).length === 0) {
     return (
       <Card className="fixed inset-0 z-50 flex flex-col">
         <CardHeader className="flex-shrink-0">
@@ -284,16 +230,19 @@ export function TabulationView({
             />
             <div className="flex flex-col gap-1">
               <span className="text-sm font-medium">Extend Search Type</span>
-            <Select value={expansionType} onValueChange={(value: ExpansionType) => setExpansionType(value)}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Select expansion type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="no-expand">No Expand</SelectItem>
-                <SelectItem value="sentence-expand">Sentence Expand</SelectItem>
-                <SelectItem value="paragraph-expand">Paragraph Expand</SelectItem>
-              </SelectContent>
-            </Select>
+              <Select
+                value={expansionType.toString()}
+                onValueChange={(value) => setExpansionType(Number.parseInt(value) as ExpansionType)}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select expansion type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">No Expand</SelectItem>
+                  <SelectItem value="1">Sentence Expand</SelectItem>
+                  <SelectItem value="2">Paragraph Expand</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           {tabulationData ? (
@@ -353,11 +302,12 @@ export function TabulationView({
                   <TextOccurrence
                     text={occurrence.text}
                     start={occurrence.start}
-                    end={occurrence.end}
+                    stop={occurrence.stop}
                     isHighlighted={
-                      highlightedOccurrence?.start === occurrence.start && highlightedOccurrence?.end === occurrence.end
+                      highlightedOccurrence?.start === occurrence.start &&
+                      highlightedOccurrence?.stop === occurrence.stop
                     }
-                    onClick={() => handleOccurrenceClick(occurrence)}
+                    onClick={() => handleOccurrenceClick(occurrence as Position & { file: string })}
                   />
                 </div>
               ))}
@@ -368,4 +318,3 @@ export function TabulationView({
     </Card>
   )
 }
-

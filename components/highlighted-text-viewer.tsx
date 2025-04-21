@@ -1,4 +1,4 @@
-import React from "react"
+import type React from "react"
 import { useRef, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 
@@ -7,7 +7,7 @@ interface HighlightedTextViewerProps {
   highlightStart: number
   highlightEnd: number
   onContentChange?: (newContent: string) => void
-  onContextMenu?: (event: React.MouseEvent) => void
+  onContextMenu?: (React.MouseEvent) => void
 }
 
 export const HighlightedTextViewer = React.forwardRef<HTMLDivElement, HighlightedTextViewerProps>(
@@ -67,4 +67,3 @@ export const HighlightedTextViewer = React.forwardRef<HTMLDivElement, Highlighte
 )
 
 HighlightedTextViewer.displayName = "HighlightedTextViewer"
-

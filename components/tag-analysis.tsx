@@ -1,33 +1,18 @@
-"use client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ChevronRight, Hash } from "lucide-react"
 import { TextOccurrence } from "./text-occurrence"
-
-interface TagData {
-  text: string
-  start: number
-  end: number
-}
+import type { Marking, Position } from "@/types"
 
 interface TagAnalysisProps {
-  tags: Record<string, TagData[]>
-  colors: Record<string, string>
+  tags: Marking[]
   onTagClick: (label: string) => void
-  onOccurrenceClick: (start: number, end: number) => void
+  onOccurrenceClick: (position: Position) => void
   highlightedTag: string | null
-  highlightedOccurrence: { start: number; end: number } | null
 }
 
-export function TagAnalysis({
-  tags,
-  colors,
-  onTagClick,
-  onOccurrenceClick,
-  highlightedTag,
-  highlightedOccurrence,
-}: TagAnalysisProps) {
+export function TagAnalysis({ tags, onTagClick, onOccurrenceClick, highlightedTag }: TagAnalysisProps) {
   return (
     <Card className="w-full">
       <CardHeader>
@@ -39,38 +24,39 @@ export function TagAnalysis({
       <CardContent>
         <ScrollArea className="h-[600px] pr-4">
           <div className="space-y-4">
-            {Object.entries(tags).map(([label, instances]) => (
-              <Collapsible key={label}>
+            {tags.map((tag) => (
+              <Collapsible key={tag.id}>
                 <CollapsibleTrigger
                   className={`flex w-full items-center gap-2 rounded-lg border bg-card p-4 text-left hover:bg-accent ${
-                    highlightedTag === label ? "bg-green-200" : ""
+                    highlightedTag === tag.text ? "bg-green-200" : ""
                   }`}
-                  onClick={() => onTagClick(label)}
+                  onClick={() => onTagClick(tag.text)}
                 >
                   <ChevronRight
                     className={`h-4 w-4 shrink-0 transition-transform duration-200 ${
-                      highlightedTag === label ? "rotate-90" : ""
+                      highlightedTag === tag.text ? "rotate-90" : ""
                     }`}
                   />
-                  <div className={`h-3 w-3 rounded ${colors[label]}`} />
-                  <span className="font-semibold">{label}</span>
+                  <div className={`h-3 w-3 rounded`} style={{ backgroundColor: tag.color }} />
+                  <span className="font-semibold">{tag.text}</span>
                   <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground">
-                    {instances.length} {instances.length === 1 ? "occurrence" : "occurrences"}
+                    {tag.positions ? Object.values(tag.positions).flat().length : 0} occurrences
                   </span>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="mt-2 space-y-2">
-                  {instances.map((tag, index) => (
-                    <TextOccurrence
-                      key={index}
-                      text={tag.text}
-                      start={tag.start}
-                      end={tag.end}
-                      isHighlighted={
-                        highlightedOccurrence?.start === tag.start && highlightedOccurrence?.end === tag.end
-                      }
-                      onClick={() => onOccurrenceClick(tag.start, tag.end)}
-                    />
-                  ))}
+                  {tag.positions &&
+                    Object.entries(tag.positions).map(([fileId, positions]) =>
+                      positions.map((position, index) => (
+                        <TextOccurrence
+                          key={`${fileId}-${index}`}
+                          text={position.text}
+                          start={position.start}
+                          stop={position.stop}
+                          isHighlighted={highlightedTag === tag.text}
+                          onClick={() => onOccurrenceClick(position)}
+                        />
+                      )),
+                    )}
                 </CollapsibleContent>
               </Collapsible>
             ))}
@@ -80,4 +66,3 @@ export function TagAnalysis({
     </Card>
   )
 }
-
