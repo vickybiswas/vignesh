@@ -2,8 +2,15 @@ services:
 
   vignesh-ui:
     volumes:
-      - ./:/app/
+      - d:/code/vignesh/:/app
     ports:
       - 3000:3000
     build:
       context: ./
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: bridge
+  

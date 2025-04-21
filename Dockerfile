@@ -2,5 +2,6 @@ FROM node:23-alpine
 
 WORKDIR /app
 
+RUN npm install -f
 
-CMD ["npm","install", "-f", "&&", "npm", "run", "dev"]
+CMD ["npm", "run", "dev"]

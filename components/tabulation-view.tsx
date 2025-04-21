@@ -98,27 +98,39 @@ export function TabulationView({
             }))
           occurrences = occurrences.concat(tagOccurrences)
         } else {
-          const sentences =
-            expansionType === "sentence-expand"
-              ? fileData.content.split(/(?<=[.!?])\s+/)
-              : expansionType === "paragraph-expand"
-                ? fileData.content.split(/\n\s*\n/)
-                : [fileData.content]
+          let index = fileData.content.toLowerCase().indexOf(term.toLowerCase())
+          while (index !== -1) {
+            let start = index
+            let end = index + term.length
 
-          let currentPosition = 0
-          sentences.forEach((sentence) => {
-            if (sentence.toLowerCase().includes(term.toLowerCase())) {
-              occurrences.push({
-                file: fileName,
-                text: sentence.trim(),
-                start: currentPosition,
-                end: currentPosition + sentence.length,
-              })
+            if (expansionType === "sentence-expand") {
+              start = fileData.content.lastIndexOf(".", index) + 1
+              if (start === 0) start = 0 // If no period found before, start from the beginning
+              end = fileData.content.indexOf(".", index + 1)
+              if (end === -1) end = fileData.content.length
+              // Trim leading and trailing whitespace
+              while (fileData.content[start] === " " && start < index) start++
+              while (fileData.content[end - 1] === " " && end > index + term.length) end--
+            } else if (expansionType === "paragraph-expand") {
+              start = fileData.content.lastIndexOf("\n\n", index) + 2
+              if (start === 1) start = 0 // If no double newline found before, start from the beginning
+              end = fileData.content.indexOf("\n\n", index)
+              if (end === -1) end = fileData.content.length
             }
-            currentPosition += sentence.length + 1 // +1 for the removed delimiter
-          })
+
+            occurrences.push({
+              file: fileName,
+              text: fileData.content.slice(start, end),
+              start,
+              end,
+            })
+            console.log("start", start, "end", end, "file", fileName, "text", fileData.content.slice(start, end))
+            index = fileData.content.toLowerCase().indexOf(term.toLowerCase(), index + 1)
+          }
         }
       })
+
+      console.log("occurrences", occurrences)
 
       return occurrences
     },
@@ -136,6 +148,7 @@ export function TabulationView({
 
       let rowTotal = 0
       columnSelections.forEach((col) => {
+        console.log("row", row, "col", col)
         const colOccurrences = getOccurrences(col, uniqueTagLabels.includes(col))
 
         // Find intersections based on the expansion type
@@ -147,6 +160,7 @@ export function TabulationView({
                 colOcc.file === rowOcc.file && Math.max(rowOcc.start, colOcc.start) < Math.min(rowOcc.end, colOcc.end)
               )
             } else {
+              console.log("rowOcc", rowOcc, "colOcc", colOcc, "file", rowOcc.file)
               // Same sentence/paragraph
               return colOcc.file === rowOcc.file && colOcc.start === rowOcc.start && colOcc.end === rowOcc.end
             }
@@ -270,16 +284,16 @@ export function TabulationView({
             />
             <div className="flex flex-col gap-1">
               <span className="text-sm font-medium">Extend Search Type</span>
-              <Select value={expansionType} onValueChange={(value: ExpansionType) => setExpansionType(value)}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Select expansion type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="no-expand">No Expand</SelectItem>
-                  <SelectItem value="sentence-expand">Sentence Expand</SelectItem>
-                  <SelectItem value="paragraph-expand">Paragraph Expand</SelectItem>
-                </SelectContent>
-              </Select>
+            <Select value={expansionType} onValueChange={(value: ExpansionType) => setExpansionType(value)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select expansion type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="no-expand">No Expand</SelectItem>
+                <SelectItem value="sentence-expand">Sentence Expand</SelectItem>
+                <SelectItem value="paragraph-expand">Paragraph Expand</SelectItem>
+              </SelectContent>
+            </Select>
             </div>
           </div>
           {tabulationData ? (
