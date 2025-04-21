@@ -18,13 +18,37 @@ import { SearchAnalysis } from "./search-analysis"
 import { TabulationView } from "./tabulation-view"
 import { FileList } from "./file-list"
 import { UserDropdown } from "./user-dropdown"
-import { HighlightedTextViewer } from "./highlighted-text-viewer"
 import { Search, Save, Table, X, Download, Upload, BookOpen } from "lucide-react"
 import { generatePastelColor } from "@/utils/colors"
-import type { AppState, Marking, File, Position } from "@/types"
 import { SynonymsPopup } from "./synonyms-popup"
 
 const LOCAL_STORAGE_KEY = "textViewerState"
+
+// New types based on the updated structure
+interface Tag {
+  type: "Search" | "Tag"
+  text: string
+  color: string
+  start: number
+  end: number
+}
+
+interface TextFile {
+  name: string
+  content: string
+  tags: Record<string, Tag>
+  dirty: boolean
+}
+
+interface AppState {
+  files: Record<string, TextFile>
+  activeFile: string
+  tabulations: Array<{
+    rows: string[]
+    columns: string[]
+    extend_type: 0 | 1 | 2
+  }>
+}
 
 export default function TextViewer() {
   const [state, setState] = useState<AppState>(() => {
@@ -35,22 +59,21 @@ export default function TextViewer() {
       }
     }
     return {
-      markings: [],
       files: {
         "sample.txt": {
           name: "sample.txt",
-          dirty: false,
-          positions: {},
           content:
             "This is a sample text. You can right-click on any part of this text to add tags to it, including overlapping tags.",
+          tags: {},
+          dirty: false,
         },
       },
-      tabulations: [],
       activeFile: "sample.txt",
+      tabulations: [],
     }
   })
 
-  const [selection, setSelection] = useState<{ start: number; stop: number } | null>(null)
+  const [selection, setSelection] = useState<{ start: number; end: number } | null>(null)
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null)
   const [newTagLabel, setNewTagLabel] = useState<string>("")
   const [isNewTagDialogOpen, setIsNewTagDialogOpen] = useState<boolean>(false)
@@ -79,36 +102,21 @@ export default function TextViewer() {
     preSelectionRange.selectNodeContents(contentRef.current)
     preSelectionRange.setEnd(range.startContainer, range.startOffset)
     const start = preSelectionRange.toString().length
-    const stop = start + selection.toString().length
+    const end = start + selection.toString().length
 
-    if (start === stop) return
+    if (start === end) return
 
-    setSelection({ start, stop })
+    setSelection({ start, end })
     setContextMenuPosition({ x: event.clientX, y: event.clientY })
   }, [])
 
-  const addMarking = useCallback((type: "search" | "tag", text: string) => {
-    const newMarking: Marking = {
-      id: `${type}-${Date.now()}`,
-      type,
-      text,
-      color: generatePastelColor(),
-    }
-
-    setState((prevState) => ({
-      ...prevState,
-      markings: [...prevState.markings, newMarking],
-    }))
-
-    return newMarking
-  }, [])
-
   const addTag = useCallback(
-    (label: string) => {
+    (label: string, type: "Tag" | "Search" = "Tag") => {
       if (!selection || !label.trim()) return
 
-      const newTag = addMarking("tag", label)
-      const selectedText = activeFile.content.slice(selection.start, selection.stop)
+      const tagId = `${type.toLowerCase()}-${Date.now()}`
+      const selectedText = activeFile.content.slice(selection.start, selection.end)
+      const color = generatePastelColor()
 
       setState((prevState) => ({
         ...prevState,
@@ -116,22 +124,24 @@ export default function TextViewer() {
           ...prevState.files,
           [state.activeFile]: {
             ...prevState.files[state.activeFile],
-            positions: {
-              ...prevState.files[state.activeFile].positions,
-              [newTag.id]: [
-                ...(prevState.files[state.activeFile].positions[newTag.id] || []),
-                { text: selectedText, start: selection.start, stop: selection.stop },
-              ],
+            tags: {
+              ...prevState.files[state.activeFile].tags,
+              [tagId]: {
+                type,
+                text: label,
+                color,
+                start: selection.start,
+                end: selection.end,
+              },
             },
           },
         },
-        markings: [...prevState.markings, newTag],
       }))
 
       setSelection(null)
       setContextMenuPosition(null)
     },
-    [state.activeFile, activeFile, selection, addMarking],
+    [state.activeFile, activeFile, selection],
   )
 
   const handleNewTag = useCallback(() => {
@@ -146,86 +156,146 @@ export default function TextViewer() {
     }
   }, [addTag, newTagLabel])
 
-  const getFilteredMarkings = useCallback(() => {
-    if (selectedTagFilter === "all") return state.markings.filter((m) => m.type === "tag")
-    return state.markings.filter((m) => m.type === "tag" && m.text === selectedTagFilter)
-  }, [state.markings, selectedTagFilter])
+  const getFilteredTags = useCallback(() => {
+    const tags: Tag[] = []
+
+    Object.entries(activeFile.tags).forEach(([id, tag]) => {
+      if (tag.type === "Tag" && (selectedTagFilter === "all" || tag.text === selectedTagFilter)) {
+        tags.push({ ...tag, id })
+      }
+    })
+
+    return tags
+  }, [activeFile.tags, selectedTagFilter])
 
   const searchResults = useMemo(() => {
     if (!searchTerm) return []
 
-    const searchMarking = state.markings.find((m) => m.type === "search" && m.text === searchTerm)
-    if (searchMarking) {
-      return activeFile.positions[searchMarking.id] || []
+    // Check if we already have this search term saved
+    const existingSearches = Object.values(activeFile.tags).filter(
+      (tag) => tag.type === "Search" && tag.text === searchTerm,
+    )
+
+    if (existingSearches.length > 0) {
+      return existingSearches
     }
 
-    const results: Position[] = []
+    // Otherwise, find all occurrences in the text
+    const results: Tag[] = []
     let index = activeFile.content.toLowerCase().indexOf(searchTerm.toLowerCase())
+    let counter = 0
+
     while (index !== -1) {
       results.push({
-        text: activeFile.content.slice(index, index + searchTerm.length),
+        type: "Search",
+        text: searchTerm,
+        color: generatePastelColor(),
         start: index,
-        stop: index + searchTerm.length,
+        end: index + searchTerm.length,
       })
       index = activeFile.content.toLowerCase().indexOf(searchTerm.toLowerCase(), index + 1)
+      counter++
+      if (counter > 1000) break // Safety limit
     }
 
     return results
-  }, [state.markings, activeFile, searchTerm])
+  }, [activeFile.tags, activeFile.content, searchTerm])
 
   const renderContent = useCallback(() => {
     if (!activeFile.content) return null
 
+    // Get all tags and search results
+    const allTags = Object.values(activeFile.tags)
+    const currentSearchResults = searchTerm ? searchResults : []
+
+    // Combine all highlights
+    const highlights = [...allTags, ...currentSearchResults]
+
+    // Sort by start position
+    highlights.sort((a, b) => a.start - b.start)
+
+    // Create segments
     const segments: {
       text: string
-      marking: Marking | null
-      isHighlighted: boolean
+      start: number
+      end: number
+      tags: Tag[]
     }[] = []
 
-    let lastIndex = 0
+    // Find all unique positions
+    const positions = new Set<number>()
+    highlights.forEach((tag) => {
+      positions.add(tag.start)
+      positions.add(tag.end)
+    })
 
-    const addSegment = (end: number, marking: Marking | null = null, isHighlighted = false) => {
-      if (end > lastIndex) {
-        segments.push({
-          text: activeFile.content.slice(lastIndex, end),
-          marking,
-          isHighlighted,
-        })
-        lastIndex = end
-      }
+    // Add start and end of text
+    positions.add(0)
+    positions.add(activeFile.content.length)
+
+    // Convert to array and sort
+    const sortedPositions = Array.from(positions).sort((a, b) => a - b)
+
+    // Create segments
+    for (let i = 0; i < sortedPositions.length - 1; i++) {
+      const start = sortedPositions[i]
+      const end = sortedPositions[i + 1]
+
+      if (start === end) continue
+
+      const text = activeFile.content.slice(start, end)
+      const segmentTags = highlights.filter((tag) => tag.start <= start && tag.end >= end)
+
+      segments.push({
+        text,
+        start,
+        end,
+        tags: segmentTags,
+      })
     }
 
-    // Add segments for all markings
-    state.markings.forEach((marking) => {
-      const positions = activeFile.positions[marking.id] || []
-      positions.forEach((position) => {
-        addSegment(position.start)
-        addSegment(position.stop, marking, marking.text === selectedTagFilter || marking.text === searchTerm)
-      })
-    })
-
-    // Add final segment
-    addSegment(activeFile.content.length)
-
-    // Sort segments by start index
-    segments.sort((a, b) => a.text.length - b.text.length)
-
+    // Render segments
     return segments.map((segment, index) => {
-      if (segment.marking) {
-        return (
-          <mark
-            key={index}
-            style={{ backgroundColor: segment.marking.color }}
-            className={segment.isHighlighted ? "bg-opacity-50" : ""}
-            title={segment.marking.text}
-          >
-            {segment.text}
-          </mark>
-        )
+      if (segment.tags.length === 0) {
+        return <span key={index}>{segment.text}</span>
       }
-      return <span key={index}>{segment.text}</span>
+
+      // Determine if this segment should be highlighted (for search or tag filter)
+      const isHighlighted = segment.tags.some(
+        (tag) =>
+          (tag.type === "Search" && tag.text === searchTerm) || (tag.type === "Tag" && tag.text === selectedTagFilter),
+      )
+
+      // For segments with multiple tags, we'll create a style with all colors
+      const style: React.CSSProperties = {}
+
+      if (segment.tags.length === 1) {
+        // Single tag - use its color
+        style.backgroundColor = segment.tags[0].color
+        style.opacity = isHighlighted ? 1 : 0.5
+      } else {
+        // Multiple tags - create a gradient
+        const gradient = segment.tags
+          .map(
+            (tag, i) =>
+              `${tag.color} ${(i * 100) / segment.tags.length}%, ${tag.color} ${((i + 1) * 100) / segment.tags.length}%`,
+          )
+          .join(", ")
+
+        style.background = `linear-gradient(135deg, ${gradient})`
+        style.opacity = isHighlighted ? 1 : 0.5
+      }
+
+      // Create title with all tag names
+      const title = segment.tags.map((tag) => `${tag.type}: ${tag.text}`).join("\n")
+
+      return (
+        <mark key={index} style={style} title={title} className="rounded-sm">
+          {segment.text}
+        </mark>
+      )
     })
-  }, [activeFile.content, activeFile.positions, state.markings, selectedTagFilter, searchTerm])
+  }, [activeFile.content, activeFile.tags, searchResults, searchTerm, selectedTagFilter])
 
   const handleSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault()
@@ -233,27 +303,60 @@ export default function TextViewer() {
   }, [])
 
   const saveSearch = useCallback(() => {
-    if (searchTerm && !state.markings.some((m) => m.type === "search" && m.text === searchTerm)) {
-      const newSearchMarking = addMarking("search", searchTerm)
+    if (!searchTerm) return
+
+    // Check if this search already exists
+    const existingSearch = Object.values(activeFile.tags).some(
+      (tag) => tag.type === "Search" && tag.text === searchTerm,
+    )
+
+    if (existingSearch) return
+
+    // Save all occurrences of the search term
+    searchResults.forEach((result, index) => {
+      const tagId = `search-${Date.now()}-${index}`
+
       setState((prevState) => ({
         ...prevState,
         files: {
           ...prevState.files,
           [state.activeFile]: {
             ...prevState.files[state.activeFile],
-            positions: {
-              ...prevState.files[state.activeFile].positions,
-              [newSearchMarking.id]: searchResults,
+            tags: {
+              ...prevState.files[state.activeFile].tags,
+              [tagId]: {
+                ...result,
+              },
             },
           },
         },
       }))
-    }
-  }, [searchTerm, state.markings, addMarking, state.activeFile, searchResults])
+    })
+  }, [searchTerm, searchResults, activeFile.tags, state.activeFile])
 
   const uniqueTagLabels = useMemo(() => {
-    return Array.from(new Set(state.markings.filter((m) => m.type === "tag").map((m) => m.text)))
-  }, [state.markings])
+    const labels = new Set<string>()
+
+    Object.values(activeFile.tags).forEach((tag) => {
+      if (tag.type === "Tag") {
+        labels.add(tag.text)
+      }
+    })
+
+    return Array.from(labels)
+  }, [activeFile.tags])
+
+  const savedSearches = useMemo(() => {
+    const searches = new Set<string>()
+
+    Object.values(activeFile.tags).forEach((tag) => {
+      if (tag.type === "Search") {
+        searches.add(tag.text)
+      }
+    })
+
+    return Array.from(searches)
+  }, [activeFile.tags])
 
   const handleContentChange = useCallback(
     (newContent: string) => {
@@ -290,9 +393,9 @@ export default function TextViewer() {
             ...prevState.files,
             [fileName]: {
               name: fileName,
-              dirty: true,
-              positions: {},
               content,
+              tags: {},
+              dirty: true,
             },
           },
           activeFile: fileName,
@@ -323,14 +426,14 @@ export default function TextViewer() {
     setSelectedTagFilter("all")
   }, [])
 
-  const handleSpecificSearchClick = useCallback((position: Position) => {
+  const handleSpecificSearchClick = useCallback((position: { start: number; end: number }) => {
     // Scroll to the specific occurrence
     if (contentRef.current) {
       const range = document.createRange()
       const textNode = contentRef.current.firstChild
       if (textNode) {
         range.setStart(textNode, position.start)
-        range.setEnd(textNode, position.stop)
+        range.setEnd(textNode, position.end)
         const rect = range.getBoundingClientRect()
         const containerRect = contentRef.current.getBoundingClientRect()
         contentRef.current.scrollTo({
@@ -347,7 +450,7 @@ export default function TextViewer() {
   }, [])
 
   const handleTabulationOccurrenceSelect = useCallback(
-    (occurrence: { text: string; start: number; stop: number; file: string }) => {
+    (occurrence: { text: string; start: number; end: number; file: string }) => {
       setState({
         ...state,
         activeFile: occurrence.file,
@@ -355,7 +458,7 @@ export default function TextViewer() {
       handleSpecificSearchClick(occurrence)
       setShowTabulationView(false)
     },
-    [state, handleSpecificSearchClick], // Added state as a dependency
+    [state, handleSpecificSearchClick],
   )
 
   const handleDownloadState = useCallback(() => {
@@ -394,10 +497,27 @@ export default function TextViewer() {
   }, [])
 
   const handleRemoveSearch = useCallback((searchToRemove: string) => {
-    setState((prevState) => ({
-      ...prevState,
-      markings: prevState.markings.filter((m) => !(m.type === "search" && m.text === searchToRemove)),
-    }))
+    setState((prevState) => {
+      const newFile = { ...prevState.files[prevState.activeFile] }
+      const newTags = { ...newFile.tags }
+
+      // Remove all tags with this search text
+      Object.entries(newTags).forEach(([id, tag]) => {
+        if (tag.type === "Search" && tag.text === searchToRemove) {
+          delete newTags[id]
+        }
+      })
+
+      newFile.tags = newTags
+
+      return {
+        ...prevState,
+        files: {
+          ...prevState.files,
+          [prevState.activeFile]: newFile,
+        },
+      }
+    })
   }, [])
 
   const handleSaveFile = useCallback(
@@ -504,40 +624,76 @@ export default function TextViewer() {
   const handleSaveSynonyms = useCallback(
     (selectedSynonyms: string[]) => {
       selectedSynonyms.forEach((synonym) => {
-        if (!state.markings.some((m) => m.type === "search" && m.text === synonym)) {
-          const newSearchMarking = addMarking("search", synonym)
+        // Check if this synonym already exists as a search
+        const existingSearch = Object.values(activeFile.tags).some(
+          (tag) => tag.type === "Search" && tag.text === synonym,
+        )
 
-          // Find occurrences of the synonym in the active file
-          const results: Position[] = []
+        if (!existingSearch) {
+          // Find all occurrences of the synonym
           let index = activeFile.content.toLowerCase().indexOf(synonym.toLowerCase())
-          while (index !== -1) {
-            results.push({
-              text: activeFile.content.slice(index, index + synonym.length),
-              start: index,
-              stop: index + synonym.length,
-            })
-            index = activeFile.content.toLowerCase().indexOf(synonym.toLowerCase(), index + 1)
-          }
+          let counter = 0
 
-          setState((prevState) => ({
-            ...prevState,
-            files: {
-              ...prevState.files,
-              [state.activeFile]: {
-                ...prevState.files[state.activeFile],
-                positions: {
-                  ...prevState.files[state.activeFile].positions,
-                  [newSearchMarking.id]: results,
+          while (index !== -1 && counter < 1000) {
+            const tagId = `search-${Date.now()}-${synonym}-${counter}`
+
+            setState((prevState) => ({
+              ...prevState,
+              files: {
+                ...prevState.files,
+                [state.activeFile]: {
+                  ...prevState.files[state.activeFile],
+                  tags: {
+                    ...prevState.files[state.activeFile].tags,
+                    [tagId]: {
+                      type: "Search",
+                      text: synonym,
+                      color: generatePastelColor(),
+                      start: index,
+                      end: index + synonym.length,
+                    },
+                  },
                 },
               },
-            },
-          }))
+            }))
+
+            index = activeFile.content.toLowerCase().indexOf(synonym.toLowerCase(), index + 1)
+            counter++
+          }
         }
       })
+
       setShowSynonymsPopup(false)
     },
-    [state.markings, state.activeFile, activeFile.content, addMarking],
+    [activeFile.tags, activeFile.content, state.activeFile],
   )
+
+  // Convert tags to the format expected by TagAnalysis
+  const convertedTags = useMemo(() => {
+    const tagsByText: Record<string, Tag[]> = {}
+
+    Object.entries(activeFile.tags).forEach(([id, tag]) => {
+      if (tag.type === "Tag") {
+        if (!tagsByText[tag.text]) {
+          tagsByText[tag.text] = []
+        }
+        tagsByText[tag.text].push(tag)
+      }
+    })
+
+    return Object.entries(tagsByText).map(([text, tags]) => ({
+      id: text,
+      text,
+      color: tags[0].color,
+      positions: {
+        [state.activeFile]: tags.map((tag) => ({
+          text: activeFile.content.slice(tag.start, tag.end),
+          start: tag.start,
+          stop: tag.end,
+        })),
+      },
+    }))
+  }, [activeFile.tags, activeFile.content, state.activeFile])
 
   return (
     <div className="container mx-auto py-6 h-screen flex flex-col">
@@ -585,7 +741,11 @@ export default function TextViewer() {
                     <SelectItem key={label} value={label} className="flex items-center gap-2">
                       <div
                         className={`w-3 h-3 rounded inline-block mr-2`}
-                        style={{ backgroundColor: state.markings.find((m) => m.text === label)?.color }}
+                        style={{
+                          backgroundColor: Object.values(activeFile.tags).find(
+                            (tag) => tag.type === "Tag" && tag.text === label,
+                          )?.color,
+                        }}
                       />
                       {label}
                     </SelectItem>
@@ -616,11 +776,7 @@ export default function TextViewer() {
                 <Button type="submit">
                   <Search className="h-4 w-4" />
                 </Button>
-                <Button
-                  type="button"
-                  onClick={saveSearch}
-                  disabled={!searchTerm || state.markings.some((m) => m.type === "search" && m.text === searchTerm)}
-                >
+                <Button type="button" onClick={saveSearch} disabled={!searchTerm || savedSearches.includes(searchTerm)}>
                   <Save className="h-4 w-4" />
                 </Button>
                 <Button type="button" onClick={fetchSynonyms} disabled={!searchTerm} title="Find synonyms">
@@ -628,14 +784,16 @@ export default function TextViewer() {
                 </Button>
               </form>
             </div>
-            <HighlightedTextViewer
-              content={renderContent()}
-              highlightStart={0}
-              highlightEnd={0}
-              onContentChange={handleContentChange}
+            <div
               ref={contentRef}
+              className="text-lg p-4 border rounded relative whitespace-pre-wrap h-full overflow-auto"
+              contentEditable
+              suppressContentEditableWarning
+              onInput={(e) => handleContentChange(e.currentTarget.textContent || "")}
               onContextMenu={handleContextMenu}
-            />
+            >
+              {renderContent()}
+            </div>
           </div>
           <div className="space-y-6 overflow-auto">
             <div className="flex justify-between items-center">
@@ -646,15 +804,19 @@ export default function TextViewer() {
               </Button>
             </div>
             <TagAnalysis
-              tags={getFilteredMarkings()}
+              tags={convertedTags}
               onTagClick={handleTagClick}
               onOccurrenceClick={handleSpecificSearchClick}
               highlightedTag={selectedTagFilter}
             />
             <SearchAnalysis
               content={activeFile.content}
-              currentSearchResults={searchResults}
-              savedSearches={state.markings.filter((m) => m.type === "search").map((m) => m.text)}
+              currentSearchResults={searchResults.map((result) => ({
+                text: result.text,
+                start: result.start,
+                stop: result.end,
+              }))}
+              savedSearches={savedSearches}
               onSelectSearch={handleSearchClick}
               onSelectSpecificSearch={handleSpecificSearchClick}
               onRemoveSearch={handleRemoveSearch}
@@ -665,10 +827,55 @@ export default function TextViewer() {
       </div>
       {showTabulationView && (
         <TabulationView
-          state={state}
+          state={{
+            markings: [
+              ...Object.entries(activeFile.tags).map(([id, tag]) => ({
+                id,
+                type: tag.type.toLowerCase(),
+                text: tag.text,
+                color: tag.color,
+                positions: {
+                  [state.activeFile]: [
+                    {
+                      text: activeFile.content.slice(tag.start, tag.end),
+                      start: tag.start,
+                      stop: tag.end,
+                    },
+                  ],
+                },
+              })),
+            ],
+            files: {
+              [state.activeFile]: {
+                name: state.activeFile,
+                content: activeFile.content,
+                dirty: activeFile.dirty,
+                positions: Object.entries(activeFile.tags).reduce(
+                  (acc, [id, tag]) => {
+                    acc[id] = [
+                      {
+                        text: activeFile.content.slice(tag.start, tag.end),
+                        start: tag.start,
+                        stop: tag.end,
+                      },
+                    ]
+                    return acc
+                  },
+                  {} as Record<string, any[]>,
+                ),
+              },
+            },
+            tabulations: state.tabulations,
+            activeFile: state.activeFile,
+          }}
           onClose={() => setShowTabulationView(false)}
           onSelectOccurrence={handleTabulationOccurrenceSelect}
-          setState={setState}
+          setState={(newState) => {
+            setState((prevState) => ({
+              ...prevState,
+              tabulations: newState.tabulations,
+            }))
+          }}
           activeFile={state.activeFile}
         />
       )}
@@ -688,7 +895,11 @@ export default function TextViewer() {
             <DropdownMenuItem key={label} onSelect={() => addTag(label)} className="flex items-center gap-2">
               <div
                 className={`w-3 h-3 rounded`}
-                style={{ backgroundColor: state.markings.find((m) => m.text === label)?.color }}
+                style={{
+                  backgroundColor: Object.values(activeFile.tags).find(
+                    (tag) => tag.type === "Tag" && tag.text === label,
+                  )?.color,
+                }}
               />
               {label}
             </DropdownMenuItem>
