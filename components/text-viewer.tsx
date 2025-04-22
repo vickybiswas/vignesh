@@ -24,13 +24,17 @@ import { SynonymsPopup } from "./synonyms-popup"
 
 const LOCAL_STORAGE_KEY = "textViewerState"
 
-// New types based on the updated structure
-interface Tag {
-  type: "Search" | "Tag"
+// Updated types based on the new structure
+interface Occurrence {
   text: string
-  color: string
   start: number
   end: number
+}
+
+interface Tag {
+  type: "Search" | "Tag"
+  color: string
+  occurrences: Occurrence[]
 }
 
 interface TextFile {
@@ -114,29 +118,54 @@ export default function TextViewer() {
     (label: string, type: "Tag" | "Search" = "Tag") => {
       if (!selection || !label.trim()) return
 
-      const tagId = `${type.toLowerCase()}-${Date.now()}`
       const selectedText = activeFile.content.slice(selection.start, selection.end)
-      const color = generatePastelColor()
 
-      setState((prevState) => ({
-        ...prevState,
-        files: {
-          ...prevState.files,
-          [state.activeFile]: {
-            ...prevState.files[state.activeFile],
-            tags: {
-              ...prevState.files[state.activeFile].tags,
-              [tagId]: {
-                type,
-                text: label,
-                color,
+      // Check if this tag already exists
+      const tagId = `${type.toLowerCase()}-${label.replace(/\s+/g, "-").toLowerCase()}`
+      const existingTag = activeFile.tags[tagId]
+
+      setState((prevState) => {
+        const newTags = { ...prevState.files[state.activeFile].tags }
+
+        if (existingTag) {
+          // Add a new occurrence to the existing tag
+          newTags[tagId] = {
+            ...existingTag,
+            occurrences: [
+              ...existingTag.occurrences,
+              {
+                text: selectedText,
                 start: selection.start,
                 end: selection.end,
               },
+            ],
+          }
+        } else {
+          // Create a new tag with this occurrence
+          newTags[tagId] = {
+            type,
+            color: generatePastelColor(),
+            occurrences: [
+              {
+                text: selectedText,
+                start: selection.start,
+                end: selection.end,
+              },
+            ],
+          }
+        }
+
+        return {
+          ...prevState,
+          files: {
+            ...prevState.files,
+            [state.activeFile]: {
+              ...prevState.files[state.activeFile],
+              tags: newTags,
             },
           },
-        },
-      }))
+        }
+      })
 
       setSelection(null)
       setContextMenuPosition(null)
@@ -157,11 +186,11 @@ export default function TextViewer() {
   }, [addTag, newTagLabel])
 
   const getFilteredTags = useCallback(() => {
-    const tags: Tag[] = []
+    const tags: Array<{ id: string; tag: Tag }> = []
 
     Object.entries(activeFile.tags).forEach(([id, tag]) => {
-      if (tag.type === "Tag" && (selectedTagFilter === "all" || tag.text === selectedTagFilter)) {
-        tags.push({ ...tag, id })
+      if (tag.type === "Tag" && (selectedTagFilter === "all" || id.includes(selectedTagFilter))) {
+        tags.push({ id, tag })
       }
     })
 
@@ -172,24 +201,21 @@ export default function TextViewer() {
     if (!searchTerm) return []
 
     // Check if we already have this search term saved
-    const existingSearches = Object.values(activeFile.tags).filter(
-      (tag) => tag.type === "Search" && tag.text === searchTerm,
-    )
+    const searchId = `search-${searchTerm.replace(/\s+/g, "-").toLowerCase()}`
+    const existingSearch = activeFile.tags[searchId]
 
-    if (existingSearches.length > 0) {
-      return existingSearches
+    if (existingSearch) {
+      return existingSearch.occurrences
     }
 
     // Otherwise, find all occurrences in the text
-    const results: Tag[] = []
+    const results: Occurrence[] = []
     let index = activeFile.content.toLowerCase().indexOf(searchTerm.toLowerCase())
     let counter = 0
 
     while (index !== -1) {
       results.push({
-        type: "Search",
-        text: searchTerm,
-        color: generatePastelColor(),
+        text: activeFile.content.slice(index, index + searchTerm.length),
         start: index,
         end: index + searchTerm.length,
       })
@@ -201,161 +227,63 @@ export default function TextViewer() {
     return results
   }, [activeFile.tags, activeFile.content, searchTerm])
 
-  const renderContent = useCallback(() => {
-    if (!activeFile.content) return null
-
-    // Get all tags and search results
-    const allTags = Object.values(activeFile.tags)
-    const currentSearchResults = searchTerm ? searchResults : []
-
-    // Combine all highlights
-    const highlights = [...allTags, ...currentSearchResults]
-
-    // Sort by start position
-    highlights.sort((a, b) => a.start - b.start)
-
-    // Create segments
-    const segments: {
-      text: string
-      start: number
-      end: number
-      tags: Tag[]
-    }[] = []
-
-    // Find all unique positions
-    const positions = new Set<number>()
-    highlights.forEach((tag) => {
-      positions.add(tag.start)
-      positions.add(tag.end)
-    })
-
-    // Add start and end of text
-    positions.add(0)
-    positions.add(activeFile.content.length)
-
-    // Convert to array and sort
-    const sortedPositions = Array.from(positions).sort((a, b) => a - b)
-
-    // Create segments
-    for (let i = 0; i < sortedPositions.length - 1; i++) {
-      const start = sortedPositions[i]
-      const end = sortedPositions[i + 1]
-
-      if (start === end) continue
-
-      const text = activeFile.content.slice(start, end)
-      const segmentTags = highlights.filter((tag) => tag.start <= start && tag.end >= end)
-
-      segments.push({
-        text,
-        start,
-        end,
-        tags: segmentTags,
-      })
-    }
-
-    // Render segments
-    return segments.map((segment, index) => {
-      if (segment.tags.length === 0) {
-        return <span key={index}>{segment.text}</span>
-      }
-
-      // Determine if this segment should be highlighted (for search or tag filter)
-      const isHighlighted = segment.tags.some(
-        (tag) =>
-          (tag.type === "Search" && tag.text === searchTerm) || (tag.type === "Tag" && tag.text === selectedTagFilter),
-      )
-
-      // For segments with multiple tags, we'll create a style with all colors
-      const style: React.CSSProperties = {}
-
-      if (segment.tags.length === 1) {
-        // Single tag - use its color
-        style.backgroundColor = segment.tags[0].color
-        style.opacity = isHighlighted ? 1 : 0.5
-      } else {
-        // Multiple tags - create a gradient
-        const gradient = segment.tags
-          .map(
-            (tag, i) =>
-              `${tag.color} ${(i * 100) / segment.tags.length}%, ${tag.color} ${((i + 1) * 100) / segment.tags.length}%`,
-          )
-          .join(", ")
-
-        style.background = `linear-gradient(135deg, ${gradient})`
-        style.opacity = isHighlighted ? 1 : 0.5
-      }
-
-      // Create title with all tag names
-      const title = segment.tags.map((tag) => `${tag.type}: ${tag.text}`).join("\n")
-
-      return (
-        <mark key={index} style={style} title={title} className="rounded-sm">
-          {segment.text}
-        </mark>
-      )
-    })
-  }, [activeFile.content, activeFile.tags, searchResults, searchTerm, selectedTagFilter])
-
-  const handleSearch = useCallback((e: React.FormEvent) => {
-    e.preventDefault()
-    // The search is already performed real-time via the searchResults memo
-  }, [])
-
   const saveSearch = useCallback(() => {
-    if (!searchTerm) return
+    if (!searchTerm || searchResults.length === 0) return
 
-    // Check if this search already exists
-    const existingSearch = Object.values(activeFile.tags).some(
-      (tag) => tag.type === "Search" && tag.text === searchTerm,
-    )
+    const searchId = `search-${searchTerm.replace(/\s+/g, "-").toLowerCase()}`
+    const existingSearch = activeFile.tags[searchId]
 
-    if (existingSearch) return
+    if (existingSearch) return // Already saved
 
-    // Save all occurrences of the search term
-    searchResults.forEach((result, index) => {
-      const tagId = `search-${Date.now()}-${index}`
-
-      setState((prevState) => ({
-        ...prevState,
-        files: {
-          ...prevState.files,
-          [state.activeFile]: {
-            ...prevState.files[state.activeFile],
-            tags: {
-              ...prevState.files[state.activeFile].tags,
-              [tagId]: {
-                ...result,
-              },
+    setState((prevState) => ({
+      ...prevState,
+      files: {
+        ...prevState.files,
+        [state.activeFile]: {
+          ...prevState.files[state.activeFile],
+          tags: {
+            ...prevState.files[state.activeFile].tags,
+            [searchId]: {
+              type: "Search",
+              color: generatePastelColor(),
+              occurrences: searchResults,
             },
           },
         },
-      }))
-    })
+      },
+    }))
   }, [searchTerm, searchResults, activeFile.tags, state.activeFile])
 
   const uniqueTagLabels = useMemo(() => {
-    const labels = new Set<string>()
+    const labels: string[] = []
 
-    Object.values(activeFile.tags).forEach((tag) => {
+    Object.entries(activeFile.tags).forEach(([id, tag]) => {
       if (tag.type === "Tag") {
-        labels.add(tag.text)
+        // Extract the label from the ID (tag-label-format)
+        const label = id.split("-").slice(1).join("-")
+        if (!labels.includes(label)) {
+          labels.push(label)
+        }
       }
     })
 
-    return Array.from(labels)
+    return labels
   }, [activeFile.tags])
 
   const savedSearches = useMemo(() => {
-    const searches = new Set<string>()
+    const searches: string[] = []
 
-    Object.values(activeFile.tags).forEach((tag) => {
+    Object.entries(activeFile.tags).forEach(([id, tag]) => {
       if (tag.type === "Search") {
-        searches.add(tag.text)
+        // Extract the search term from the ID (search-term-format)
+        const searchTerm = id.split("-").slice(1).join("-")
+        if (!searches.includes(searchTerm)) {
+          searches.push(searchTerm)
+        }
       }
     })
 
-    return Array.from(searches)
+    return searches
   }, [activeFile.tags])
 
   const handleContentChange = useCallback(
@@ -451,14 +379,14 @@ export default function TextViewer() {
 
   const handleTabulationOccurrenceSelect = useCallback(
     (occurrence: { text: string; start: number; end: number; file: string }) => {
-      setState({
-        ...state,
+      setState((prevState) => ({
+        ...prevState,
         activeFile: occurrence.file,
-      })
+      }))
       handleSpecificSearchClick(occurrence)
       setShowTabulationView(false)
     },
-    [state, handleSpecificSearchClick],
+    [handleSpecificSearchClick],
   )
 
   const handleDownloadState = useCallback(() => {
@@ -501,12 +429,11 @@ export default function TextViewer() {
       const newFile = { ...prevState.files[prevState.activeFile] }
       const newTags = { ...newFile.tags }
 
-      // Remove all tags with this search text
-      Object.entries(newTags).forEach(([id, tag]) => {
-        if (tag.type === "Search" && tag.text === searchToRemove) {
-          delete newTags[id]
-        }
-      })
+      // Find and remove the search tag
+      const searchId = `search-${searchToRemove.replace(/\s+/g, "-").toLowerCase()}`
+      if (newTags[searchId]) {
+        delete newTags[searchId]
+      }
 
       newFile.tags = newTags
 
@@ -623,43 +550,48 @@ export default function TextViewer() {
 
   const handleSaveSynonyms = useCallback(
     (selectedSynonyms: string[]) => {
+      // Process each selected synonym
       selectedSynonyms.forEach((synonym) => {
-        // Check if this synonym already exists as a search
-        const existingSearch = Object.values(activeFile.tags).some(
-          (tag) => tag.type === "Search" && tag.text === synonym,
-        )
+        const searchId = `search-${synonym.replace(/\s+/g, "-").toLowerCase()}`
 
-        if (!existingSearch) {
-          // Find all occurrences of the synonym
-          let index = activeFile.content.toLowerCase().indexOf(synonym.toLowerCase())
-          let counter = 0
+        // Skip if this synonym is already saved
+        if (activeFile.tags[searchId]) return
 
-          while (index !== -1 && counter < 1000) {
-            const tagId = `search-${Date.now()}-${synonym}-${counter}`
+        // Find all occurrences of the synonym
+        const occurrences: Occurrence[] = []
+        let index = activeFile.content.toLowerCase().indexOf(synonym.toLowerCase())
+        let counter = 0
 
-            setState((prevState) => ({
-              ...prevState,
-              files: {
-                ...prevState.files,
-                [state.activeFile]: {
-                  ...prevState.files[state.activeFile],
-                  tags: {
-                    ...prevState.files[state.activeFile].tags,
-                    [tagId]: {
-                      type: "Search",
-                      text: synonym,
-                      color: generatePastelColor(),
-                      start: index,
-                      end: index + synonym.length,
-                    },
+        while (index !== -1 && counter < 1000) {
+          occurrences.push({
+            text: activeFile.content.slice(index, index + synonym.length),
+            start: index,
+            end: index + synonym.length,
+          })
+
+          index = activeFile.content.toLowerCase().indexOf(synonym.toLowerCase(), index + 1)
+          counter++
+        }
+
+        // Only add if we found occurrences
+        if (occurrences.length > 0) {
+          setState((prevState) => ({
+            ...prevState,
+            files: {
+              ...prevState.files,
+              [state.activeFile]: {
+                ...prevState.files[state.activeFile],
+                tags: {
+                  ...prevState.files[state.activeFile].tags,
+                  [searchId]: {
+                    type: "Search",
+                    color: generatePastelColor(),
+                    occurrences,
                   },
                 },
               },
-            }))
-
-            index = activeFile.content.toLowerCase().indexOf(synonym.toLowerCase(), index + 1)
-            counter++
-          }
+            },
+          }))
         }
       })
 
@@ -668,32 +600,257 @@ export default function TextViewer() {
     [activeFile.tags, activeFile.content, state.activeFile],
   )
 
-  // Convert tags to the format expected by TagAnalysis
-  const convertedTags = useMemo(() => {
-    const tagsByText: Record<string, Tag[]> = {}
+  const renderContent = useCallback(() => {
+    if (!activeFile.content) return null
+
+    // Collect all occurrences from all tags
+    const allOccurrences: Array<{
+      start: number
+      end: number
+      tag: string
+      type: "Search" | "Tag"
+      color: string
+    }> = []
 
     Object.entries(activeFile.tags).forEach(([id, tag]) => {
+      const tagName = id.split("-").slice(1).join("-")
+
+      tag.occurrences.forEach((occurrence) => {
+        allOccurrences.push({
+          start: occurrence.start,
+          end: occurrence.end,
+          tag: tagName,
+          type: tag.type,
+          color: tag.color,
+        })
+      })
+    })
+
+    // Add current search results if not saved
+    if (searchTerm) {
+      const searchId = `search-${searchTerm.replace(/\s+/g, "-").toLowerCase()}`
+      if (!activeFile.tags[searchId]) {
+        searchResults.forEach((result) => {
+          allOccurrences.push({
+            start: result.start,
+            end: result.end,
+            tag: searchTerm,
+            type: "Search",
+            color: "hsl(200, 100%, 80%)", // Temporary color for unsaved searches
+          })
+        })
+      }
+    }
+
+    // Sort by start position
+    allOccurrences.sort((a, b) => a.start - b.start)
+
+    // Create segments
+    const segments: {
+      text: string
+      start: number
+      end: number
+      occurrences: typeof allOccurrences
+    }[] = []
+
+    // Find all unique positions
+    const positions = new Set<number>()
+    allOccurrences.forEach((occurrence) => {
+      positions.add(occurrence.start)
+      positions.add(occurrence.end)
+    })
+
+    // Add start and end of text
+    positions.add(0)
+    positions.add(activeFile.content.length)
+
+    // Convert to array and sort
+    const sortedPositions = Array.from(positions).sort((a, b) => a - b)
+
+    // Create segments
+    for (let i = 0; i < sortedPositions.length - 1; i++) {
+      const start = sortedPositions[i]
+      const end = sortedPositions[i + 1]
+
+      if (start === end) continue
+
+      const text = activeFile.content.slice(start, end)
+      const segmentOccurrences = allOccurrences.filter(
+        (occurrence) => occurrence.start <= start && occurrence.end >= end,
+      )
+
+      segments.push({
+        text,
+        start,
+        end,
+        occurrences: segmentOccurrences,
+      })
+    }
+
+    // Render segments
+    return segments.map((segment, index) => {
+      if (segment.occurrences.length === 0) {
+        return <span key={index}>{segment.text}</span>
+      }
+
+      // Determine if this segment should be highlighted (for search or tag filter)
+      const isHighlighted = segment.occurrences.some(
+        (occurrence) =>
+          (occurrence.type === "Search" && occurrence.tag === searchTerm) ||
+          (occurrence.type === "Tag" && occurrence.tag === selectedTagFilter),
+      )
+
+      // For segments with multiple occurrences, we'll create a style with all colors
+      const style: React.CSSProperties = {}
+
+      if (segment.occurrences.length === 1) {
+        // Single occurrence - use its color
+        style.backgroundColor = segment.occurrences[0].color
+        style.opacity = isHighlighted ? 1 : 0.5
+      } else {
+        // Multiple occurrences - create a gradient
+        const gradient = segment.occurrences
+          .map(
+            (occurrence, i) =>
+              `${occurrence.color} ${(i * 100) / segment.occurrences.length}%, ${occurrence.color} ${
+                ((i + 1) * 100) / segment.occurrences.length
+              }%`,
+          )
+          .join(", ")
+
+        style.background = `linear-gradient(135deg, ${gradient})`
+        style.opacity = isHighlighted ? 1 : 0.5
+      }
+
+      // Create title with all tag names
+      const title = segment.occurrences.map((occurrence) => `${occurrence.type}: ${occurrence.tag}`).join("\n")
+
+      return (
+        <mark key={index} style={style} title={title} className="rounded-sm">
+          {segment.text}
+        </mark>
+      )
+    })
+  }, [activeFile.content, activeFile.tags, searchResults, searchTerm, selectedTagFilter])
+
+  // Convert tags to the format expected by TagAnalysis
+  const convertedTags = useMemo(() => {
+    const tagsByLabel: Record<
+      string,
+      {
+        color: string
+        occurrences: Occurrence[]
+      }
+    > = {}
+
+    // Group tag occurrences by label
+    Object.entries(activeFile.tags).forEach(([id, tag]) => {
       if (tag.type === "Tag") {
-        if (!tagsByText[tag.text]) {
-          tagsByText[tag.text] = []
+        const label = id.split("-").slice(1).join("-")
+
+        if (!tagsByLabel[label]) {
+          tagsByLabel[label] = {
+            color: tag.color,
+            occurrences: [],
+          }
         }
-        tagsByText[tag.text].push(tag)
+
+        tagsByLabel[label].occurrences.push(...tag.occurrences)
       }
     })
 
-    return Object.entries(tagsByText).map(([text, tags]) => ({
-      id: text,
-      text,
-      color: tags[0].color,
+    // Convert to the format expected by TagAnalysis
+    return Object.entries(tagsByLabel).map(([label, data]) => ({
+      id: label,
+      text: label,
+      color: data.color,
       positions: {
-        [state.activeFile]: tags.map((tag) => ({
-          text: activeFile.content.slice(tag.start, tag.end),
-          start: tag.start,
-          stop: tag.end,
+        [state.activeFile]: data.occurrences.map((occurrence) => ({
+          text: occurrence.text,
+          start: occurrence.start,
+          stop: occurrence.end,
         })),
       },
     }))
-  }, [activeFile.tags, activeFile.content, state.activeFile])
+  }, [activeFile.tags, state.activeFile])
+
+  // Prepare search results for SearchAnalysis
+  const prepareSearchResults = useCallback(
+    (searchTerm: string) => {
+      if (!searchTerm) return []
+
+      const searchId = `search-${searchTerm.replace(/\s+/g, "-").toLowerCase()}`
+      const existingSearch = activeFile.tags[searchId]
+
+      if (existingSearch) {
+        return existingSearch.occurrences.map((occurrence) => ({
+          text: occurrence.text,
+          start: occurrence.start,
+          stop: occurrence.end,
+        }))
+      }
+
+      return searchResults.map((result) => ({
+        text: result.text,
+        start: result.start,
+        stop: result.end,
+      }))
+    },
+    [activeFile.tags, searchResults],
+  )
+
+  const handleSearch = useCallback((event: React.FormEvent) => {
+    event.preventDefault()
+    // Search is handled by the searchResults memo
+  }, [])
+
+  // Prepare tabulation data
+  const prepareTabulationData = useMemo(() => {
+    // Only compute this when the tabulation view is shown
+    if (!showTabulationView) return null
+
+    const markings = Object.entries(activeFile.tags).map(([id, tag]) => {
+      const label = id.split("-").slice(1).join("-")
+
+      return {
+        id,
+        type: tag.type.toLowerCase(),
+        text: label,
+        color: tag.color,
+        positions: {
+          [state.activeFile]: tag.occurrences.map((occurrence) => ({
+            text: occurrence.text,
+            start: occurrence.start,
+            stop: occurrence.end,
+          })),
+        },
+      }
+    })
+
+    return {
+      markings,
+      files: {
+        [state.activeFile]: {
+          name: state.activeFile,
+          content: activeFile.content,
+          dirty: activeFile.dirty,
+          positions: Object.entries(activeFile.tags).reduce(
+            (acc, [id, tag]) => {
+              acc[id] = tag.occurrences.map((occurrence) => ({
+                text: occurrence.text,
+                start: occurrence.start,
+                stop: occurrence.end,
+              }))
+              return acc
+            },
+            {} as Record<string, any[]>,
+          ),
+        },
+      },
+      tabulations: state.tabulations,
+      activeFile: state.activeFile,
+    }
+  }, [showTabulationView, activeFile, state.activeFile, state.tabulations])
 
   return (
     <div className="container mx-auto py-6 h-screen flex flex-col">
@@ -742,9 +899,9 @@ export default function TextViewer() {
                       <div
                         className={`w-3 h-3 rounded inline-block mr-2`}
                         style={{
-                          backgroundColor: Object.values(activeFile.tags).find(
-                            (tag) => tag.type === "Tag" && tag.text === label,
-                          )?.color,
+                          backgroundColor: Object.entries(activeFile.tags).find(
+                            ([id, tag]) => tag.type === "Tag" && id.includes(label),
+                          )?.[1]?.color,
                         }}
                       />
                       {label}
@@ -792,7 +949,7 @@ export default function TextViewer() {
               onInput={(e) => handleContentChange(e.currentTarget.textContent || "")}
               onContextMenu={handleContextMenu}
             >
-              {renderContent()}
+              {activeFile.content ? renderContent() : null}
             </div>
           </div>
           <div className="space-y-6 overflow-auto">
@@ -811,11 +968,7 @@ export default function TextViewer() {
             />
             <SearchAnalysis
               content={activeFile.content}
-              currentSearchResults={searchResults.map((result) => ({
-                text: result.text,
-                start: result.start,
-                stop: result.end,
-              }))}
+              currentSearchResults={prepareSearchResults(searchTerm)}
               savedSearches={savedSearches}
               onSelectSearch={handleSearchClick}
               onSelectSpecificSearch={handleSpecificSearchClick}
@@ -825,49 +978,9 @@ export default function TextViewer() {
           </div>
         </div>
       </div>
-      {showTabulationView && (
+      {showTabulationView && prepareTabulationData && (
         <TabulationView
-          state={{
-            markings: [
-              ...Object.entries(activeFile.tags).map(([id, tag]) => ({
-                id,
-                type: tag.type.toLowerCase(),
-                text: tag.text,
-                color: tag.color,
-                positions: {
-                  [state.activeFile]: [
-                    {
-                      text: activeFile.content.slice(tag.start, tag.end),
-                      start: tag.start,
-                      stop: tag.end,
-                    },
-                  ],
-                },
-              })),
-            ],
-            files: {
-              [state.activeFile]: {
-                name: state.activeFile,
-                content: activeFile.content,
-                dirty: activeFile.dirty,
-                positions: Object.entries(activeFile.tags).reduce(
-                  (acc, [id, tag]) => {
-                    acc[id] = [
-                      {
-                        text: activeFile.content.slice(tag.start, tag.end),
-                        start: tag.start,
-                        stop: tag.end,
-                      },
-                    ]
-                    return acc
-                  },
-                  {} as Record<string, any[]>,
-                ),
-              },
-            },
-            tabulations: state.tabulations,
-            activeFile: state.activeFile,
-          }}
+          state={prepareTabulationData}
           onClose={() => setShowTabulationView(false)}
           onSelectOccurrence={handleTabulationOccurrenceSelect}
           setState={(newState) => {
@@ -896,9 +1009,9 @@ export default function TextViewer() {
               <div
                 className={`w-3 h-3 rounded`}
                 style={{
-                  backgroundColor: Object.values(activeFile.tags).find(
-                    (tag) => tag.type === "Tag" && tag.text === label,
-                  )?.color,
+                  backgroundColor: Object.entries(activeFile.tags).find(
+                    ([id, tag]) => tag.type === "Tag" && id.includes(label),
+                  )?.[1]?.color,
                 }}
               />
               {label}
