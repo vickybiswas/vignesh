@@ -5,6 +5,7 @@ services:
       - d:/code/vignesh/:/app
     ports:
       - 3000:3000
+      - 49153:49153
     build:
       context: ./
     networks:
