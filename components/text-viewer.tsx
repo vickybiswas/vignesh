@@ -482,7 +482,7 @@ export default function TextViewer() {
     setDeleteFilePopup("")
   }, [])
   
-  const handleRemoveFile = (e:any, fileName: string) => {
+  const handleRemoveFile = (fileName: string) => {
     setDeleteFilePopup(fileName)
   };
 
