@@ -64,7 +64,7 @@ export function FileList({
       <ul className="space-y-2 flex-grow overflow-auto">
         {files.map((file) => (
           <li key={file} className="flex items-center">
-            <HoverCard>
+            <HoverCard  openDelay={0} closeDelay={0}>
               <HoverCardTrigger asChild>
                 <Button
                   variant={file === activeFile ? "secondary" : "ghost"}
@@ -74,11 +74,12 @@ export function FileList({
                   {file}
                 </Button>
               </HoverCardTrigger>
-              <HoverCardContent className="text-right w-full">
+              <HoverCardContent side="right" sideOffset="-7" align="end" className="bg-red-100">
                 <Button
                   variant={"ghost"}
                   size="icon"
                   onClick={() => onSaveFile(file)}
+                  className="hover:bg-black hover:text-white"
                 >
                   <Download className="h-4 w-4" /> 
                 </Button>
@@ -86,6 +87,7 @@ export function FileList({
                   variant={"ghost"}
                   size="icon"
                   onClick={() => onRemoveFile(file)}
+                  className="hover:bg-black hover:text-white"
                 >
                   <Trash className="h-4 w-4" /> 
                 </Button>
