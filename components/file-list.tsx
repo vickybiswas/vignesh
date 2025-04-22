@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, Upload, Download, Trash } from "lucide-react"
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu"
+import { messages } from "@/utils/messages"
+import { addTxtExtension, validateFileName } from "@/lib/utils"
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@radix-ui/react-hover-card"
 
 interface FileListProps {
   files: string[]
@@ -29,13 +32,24 @@ export function FileList({
 }: FileListProps) {
   const [newFileName, setNewFileName] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
-
+  const [fileAddError, setFileAddError] = useState<string>("")
   const handleAddFile = () => {
-    if (newFileName.trim()) {
-      onAddFile(newFileName.trim(), "")
-      setNewFileName("")
+    const trimmedName = newFileName.trim();
+    const validated = validateFileName(trimmedName);
+    const fileNameWithTxt = addTxtExtension(trimmedName);
+
+    if (!validated.isValid) {
+      return setFileAddError(validated.error || '');
     }
-  }
+    if (files.includes(fileNameWithTxt)) {
+      return setFileAddError(messages.fileExistWithSameName);
+    }
+
+    onAddFile(fileNameWithTxt, "");
+    setNewFileName("");
+    setFileAddError("");
+  };
+
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -44,37 +58,41 @@ export function FileList({
     }
   }
 
-  const handleContextMenu = useCallback((e: React.MouseEvent, fileName: string) => {
-    e.preventDefault()
-  }, [])
-
   return (
     <div className="w-64 border-r p-4 h-full flex flex-col">
       <h2 className="text-lg font-semibold mb-4">Files</h2>
       <ul className="space-y-2 flex-grow overflow-auto">
         {files.map((file) => (
-          <li key={file}>
-            <ContextMenu>
-              <ContextMenuTrigger asChild>
+          <li key={file} className="flex items-center">
+            <HoverCard>
+              <HoverCardTrigger asChild>
                 <Button
                   variant={file === activeFile ? "secondary" : "ghost"}
-                  className="w-full justify-start"
+                  className="w-full justify-between ct-20"
                   onClick={() => onSelectFile(file)}
                 >
                   {file}
                 </Button>
-              </ContextMenuTrigger>
-              <ContextMenuContent>
-                <ContextMenuItem onClick={() => onSaveFile(file)}>
-                  <Download className="mr-2 h-4 w-4" />
-                  Save to PC
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => onRemoveFile(file)}>
-                  <Trash className="mr-2 h-4 w-4" />
-                  Remove
-                </ContextMenuItem>
-              </ContextMenuContent>
-            </ContextMenu>
+              </HoverCardTrigger>
+              <HoverCardContent className="text-right w-full">
+                <Button
+                  variant={"ghost"}
+                  size="icon"
+                  onClick={() => onSaveFile(file)}
+                >
+                  <Download className="h-4 w-4" /> 
+                </Button>
+                <Button
+                  variant={"ghost"}
+                  size="icon"
+                  onClick={() => onRemoveFile(file)}
+                >
+                  <Trash className="h-4 w-4" /> 
+                </Button>
+
+              </HoverCardContent>
+            </HoverCard>
+
           </li>
         ))}
       </ul>
@@ -91,6 +109,7 @@ export function FileList({
             <Plus className="h-4 w-4" />
           </Button>
         </div>
+        {fileAddError && <div className="text-red-600">{fileAddError}</div>}
         <Button className="w-full" onClick={() => fileInputRef.current?.click()}>
           <Upload className="h-4 w-4 mr-2" />
           Upload File

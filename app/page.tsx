@@ -1,3 +1,4 @@
+"use-client"
 import TextViewer from '../components/text-viewer'
 
 export default function Home() {

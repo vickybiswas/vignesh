@@ -21,6 +21,8 @@ import { UserDropdown } from "./user-dropdown"
 import { Search, Save, Table, X, Download, Upload, BookOpen } from "lucide-react"
 import { generatePastelColor } from "@/utils/colors"
 import { SynonymsPopup } from "./synonyms-popup"
+import WarningPopup from "./warning-popup"
+import { messages } from "@/utils/messages"
 
 const LOCAL_STORAGE_KEY = "textViewerState"
 
@@ -76,7 +78,7 @@ export default function TextViewer() {
       tabulations: [],
     }
   })
-
+  const [deleteFilePopup, setDeleteFilePopup] = useState<string>("")
   const [selection, setSelection] = useState<{ start: number; end: number } | null>(null)
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null)
   const [newTagLabel, setNewTagLabel] = useState<string>("")
@@ -462,8 +464,11 @@ export default function TextViewer() {
     },
     [state.files],
   )
-
-  const handleRemoveFile = useCallback((fileName: string) => {
+  
+  const handleRemoveFileConfirm = useCallback((fileName: string) => {
+    if(!fileName){
+      return
+    }
     setState((prevState) => {
       const newFiles = { ...prevState.files }
       delete newFiles[fileName]
@@ -474,7 +479,14 @@ export default function TextViewer() {
         activeFile: newActiveFile,
       }
     })
+    setDeleteFilePopup("")
   }, [])
+  
+  const handleRemoveFile = (e:any, fileName: string) => {
+    setDeleteFilePopup(fileName)
+  };
+
+
 
   const generateFallbackSynonyms = useCallback((term: string, text: string): string[] => {
     // Simple algorithm to find related words in the text
@@ -615,7 +627,7 @@ export default function TextViewer() {
     Object.entries(activeFile.tags).forEach(([id, tag]) => {
       const tagName = id.split("-").slice(1).join("-")
 
-      tag.occurrences.forEach((occurrence) => {
+      tag.occurrences?.forEach((occurrence) => {
         allOccurrences.push({
           start: occurrence.start,
           end: occurrence.end,
@@ -754,8 +766,9 @@ export default function TextViewer() {
             occurrences: [],
           }
         }
-
-        tagsByLabel[label].occurrences.push(...tag.occurrences)
+        if(tag.occurrences?.length){
+          tagsByLabel[label].occurrences.push(...tag.occurrences)
+        }
       }
     })
 
@@ -1046,6 +1059,13 @@ export default function TextViewer() {
           onSave={handleSaveSynonyms}
         />
       )}
+
+      <WarningPopup
+        isOpen = {deleteFilePopup}
+        setIsOpen = {setDeleteFilePopup}
+        warningMessage = {messages.deleteFileWarningMessage}
+        onConfirm = {()=>handleRemoveFileConfirm(deleteFilePopup)}
+      />
     </div>
   )
 }

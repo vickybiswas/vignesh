@@ -2,7 +2,7 @@ services:
 
   vignesh-ui:
     volumes:
-      - d:/code/vignesh/:/app
+      - ./:/app
     ports:
       - 3000:3000
       - 49153:49153
