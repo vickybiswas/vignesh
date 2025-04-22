@@ -1,13 +1,12 @@
 "use client"
 
 import type React from "react"
-
-import { useMemo, useCallback, useState, useEffect } from "react"
+import { useMemo, useCallback, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { MultiSelect } from "./multi-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { X, Download } from "lucide-react"
+import { X, Download } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -25,19 +24,27 @@ interface TabulationViewProps {
 type ExpansionType = 0 | 1 | 2 // 0: None, 1: Sentence, 2: Paragraph
 
 export function TabulationView({ state, onClose, onSelectOccurrence, setState, activeFile }: TabulationViewProps) {
-  const [rowSelections, setRowSelections] = useState<string[]>(() => {
-    return state.tabulations[0]?.rows || []
-  })
-  const [columnSelections, setColumnSelections] = useState<string[]>(() => {
-    return state.tabulations[0]?.columns || []
-  })
-  const [expansionType, setExpansionType] = useState<ExpansionType>(() => {
-    return state.tabulations[0]?.extend_type || 0
-  })
+  // Use local state that doesn't affect parent immediately
+  const initialConfig = useMemo(() => {
+    let savedConfig = { rows: [], columns: [], extend_type: 0 }
+    if (state.tabulations && state.tabulations.length > 0) {
+      savedConfig = state.tabulations[0]
+    }
+    return {
+      rows: savedConfig.rows || [],
+      columns: savedConfig.columns || [],
+      extend_type: savedConfig.extend_type || 0,
+    }
+  }, [state.tabulations])
+
+  const [rowSelections, setRowSelections] = useState<string[]>(initialConfig.rows)
+  const [columnSelections, setColumnSelections] = useState<string[]>(initialConfig.columns)
+  const [expansionType, setExpansionType] = useState<ExpansionType>(initialConfig.extend_type)
   const [selectedCell, setSelectedCell] = useState<{ row: string; col: string } | null>(null)
   const [highlightedOccurrence, setHighlightedOccurrence] = useState<Position | null>(null)
 
-  useEffect(() => {
+  // This function now only runs when user explicitly saves configuration
+  const saveConfiguration = useCallback(() => {
     setState((prevState) => ({
       ...prevState,
       tabulations: [
@@ -174,10 +181,17 @@ export function TabulationView({ state, onClose, onSelectOccurrence, setState, a
     (occurrence: Position & { file: string }) => {
       setHighlightedOccurrence(occurrence)
       onSelectOccurrence(occurrence)
+      saveConfiguration() // Save before closing
       onClose()
     },
-    [onSelectOccurrence, onClose],
+    [onSelectOccurrence, onClose, saveConfiguration],
   )
+
+  // Save configuration when closing the tabulation view
+  const handleClose = useCallback(() => {
+    saveConfiguration()
+    onClose()
+  }, [saveConfiguration, onClose])
 
   if (Object.keys(state.files).length === 0) {
     return (
