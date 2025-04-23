@@ -14,7 +14,7 @@ interface TagAnalysisProps {
 
 export function TagAnalysis({ tags, onTagClick, onOccurrenceClick, highlightedTag }: TagAnalysisProps) {
   return (
-    <Card className="w-full">
+    <Card className="w-full h-full">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Hash className="h-5 w-5" />
@@ -22,7 +22,7 @@ export function TagAnalysis({ tags, onTagClick, onOccurrenceClick, highlightedTa
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[600px] pr-4">
+        <ScrollArea className="h-[300px] pr-4">
           <div className="space-y-4">
             {tags.map((tag) => (
               <Collapsible key={tag.id}>

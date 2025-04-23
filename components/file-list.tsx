@@ -10,6 +10,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } 
 import { messages } from "@/utils/messages"
 import { addTxtExtension, validateFileName } from "@/lib/utils"
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@radix-ui/react-hover-card"
+import AddFilePopup from "./add-file-popup"
 
 interface FileListProps {
   files: string[]
@@ -31,6 +32,8 @@ export function FileList({
   onRemoveFile,
 }: FileListProps) {
   const [newFileName, setNewFileName] = useState("")
+  const [addFilePopup, setAddFilePopup] = useState(false)
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [fileAddError, setFileAddError] = useState<string>("")
   const handleAddFile = () => {
@@ -48,6 +51,7 @@ export function FileList({
     onAddFile(fileNameWithTxt, "");
     setNewFileName("");
     setFileAddError("");
+    setAddFilePopup(false)
   };
 
 
@@ -60,11 +64,22 @@ export function FileList({
 
   return (
     <div className="w-64 border-r p-4 h-full flex flex-col">
-      <h2 className="text-lg font-semibold mb-4">Files</h2>
+     <div className="flex justify-between items-center">
+     <h2 className="text-lg font-semibold">Files</h2>
+      <div>
+      <Button size="icon" variant="outline" className="mr-2" onClick={() => setAddFilePopup(true)}>
+          <Plus className="h-4 w-4" />
+        </Button>
+        <Button size="icon" variant="outline" onClick={() => fileInputRef.current?.click()}>
+          <Upload className="h-4 w-4" />
+        </Button>
+        <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} accept=".txt,.md,.json" />
+      </div>
+     </div>
       <ul className="space-y-2 flex-grow overflow-auto">
         {files.map((file) => (
           <li key={file} className="flex items-center">
-            <HoverCard  openDelay={0} closeDelay={0}>
+            <HoverCard openDelay={0} closeDelay={0}>
               <HoverCardTrigger asChild>
                 <Button
                   variant={file === activeFile ? "secondary" : "ghost"}
@@ -81,7 +96,7 @@ export function FileList({
                   onClick={() => onSaveFile(file)}
                   className="hover:bg-black hover:text-white"
                 >
-                  <Download className="h-4 w-4" /> 
+                  <Download className="h-4 w-4" />
                 </Button>
                 <Button
                   variant={"ghost"}
@@ -89,7 +104,7 @@ export function FileList({
                   onClick={() => onRemoveFile(file)}
                   className="hover:bg-black hover:text-white"
                 >
-                  <Trash className="h-4 w-4" /> 
+                  <Trash className="h-4 w-4" />
                 </Button>
 
               </HoverCardContent>
@@ -98,26 +113,14 @@ export function FileList({
           </li>
         ))}
       </ul>
-      <div className="mt-4 space-y-2">
-        <div className="flex items-center space-x-2">
-          <Input
-            type="text"
-            placeholder="New file name"
-            value={newFileName}
-            onChange={(e) => setNewFileName(e.target.value)}
-            onKeyPress={(e) => e.key === "Enter" && handleAddFile()}
-          />
-          <Button size="icon" onClick={handleAddFile}>
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
-        {fileAddError && <div className="text-red-600">{fileAddError}</div>}
-        <Button className="w-full" onClick={() => fileInputRef.current?.click()}>
-          <Upload className="h-4 w-4 mr-2" />
-          Upload File
-        </Button>
-        <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} accept=".txt,.md,.json" />
-      </div>
+      <AddFilePopup
+        isOpen={addFilePopup}
+        setIsOpen={setAddFilePopup}
+        newFileName={newFileName}
+        setNewFileName={setNewFileName}
+        handleAddFile={handleAddFile}
+        fileAddError={fileAddError}
+      />
     </div>
   )
 }

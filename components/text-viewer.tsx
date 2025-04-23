@@ -23,7 +23,11 @@ import { generatePastelColor } from "@/utils/colors"
 import { SynonymsPopup } from "./synonyms-popup"
 import WarningPopup from "./warning-popup"
 import { messages } from "@/utils/messages"
-
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable"
 const LOCAL_STORAGE_KEY = "textViewerState"
 
 // Updated types based on the new structure
@@ -870,6 +874,10 @@ export default function TextViewer() {
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Text File Viewer</h1>
         <div className="flex items-center gap-2">
+          <Button onClick={() => setShowTabulationView(true)}>
+            <Table className="h-4 w-4 mr-2" />
+            Tabulate
+          </Button>
           <Button onClick={handleDownloadState}>
             <Download className="h-4 w-4 mr-2" />
             Download State
@@ -966,28 +974,41 @@ export default function TextViewer() {
             </div>
           </div>
           <div className="space-y-6 overflow-auto">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Tag Analysis</h2>
-              <Button onClick={() => setShowTabulationView(true)}>
-                <Table className="h-4 w-4 mr-2" />
-                Tabulate
-              </Button>
-            </div>
-            <TagAnalysis
-              tags={convertedTags}
-              onTagClick={handleTagClick}
-              onOccurrenceClick={handleSpecificSearchClick}
-              highlightedTag={selectedTagFilter}
-            />
-            <SearchAnalysis
-              content={activeFile.content}
-              currentSearchResults={prepareSearchResults(searchTerm)}
-              savedSearches={savedSearches}
-              onSelectSearch={handleSearchClick}
-              onSelectSpecificSearch={handleSpecificSearchClick}
-              onRemoveSearch={handleRemoveSearch}
-              highlightedSearch={searchTerm}
-            />
+            <ResizablePanelGroup
+              direction="horizontal"
+              className="rounded-lg border"
+            >
+              <ResizablePanel defaultSize={100}>
+                <ResizablePanelGroup direction="vertical">
+                  <ResizablePanel defaultSize={50}>
+                    <div className="flex h-full items-center justify-center p-6">
+                      <TagAnalysis
+                        tags={convertedTags}
+                        onTagClick={handleTagClick}
+                        onOccurrenceClick={handleSpecificSearchClick}
+                        highlightedTag={selectedTagFilter}
+                      />
+                    </div>
+                  </ResizablePanel>
+                  <ResizableHandle />
+                  <ResizablePanel defaultSize={50}>
+                    <div className="flex h-full items-center justify-center p-6">
+                      <SearchAnalysis
+                        content={activeFile.content}
+                        currentSearchResults={prepareSearchResults(searchTerm)}
+                        savedSearches={savedSearches}
+                        onSelectSearch={handleSearchClick}
+                        onSelectSpecificSearch={handleSpecificSearchClick}
+                        onRemoveSearch={handleRemoveSearch}
+                        highlightedSearch={searchTerm}
+                      />
+                    </div>
+                  </ResizablePanel>
+                </ResizablePanelGroup>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+        
+            
           </div>
         </div>
       </div>
