@@ -1,3 +1,4 @@
+"use-client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -24,7 +25,7 @@ export function TagAnalysis({ tags, onTagClick, onOccurrenceClick, highlightedTa
       <CardContent>
         <ScrollArea className="h-[300px] pr-4">
           <div className="space-y-4">
-            {tags.map((tag) => (
+            {tags?.map((tag) => (
               <Collapsible key={tag.id}>
                 <CollapsibleTrigger
                   className={`flex w-full items-center gap-2 rounded-lg border bg-card p-4 text-left hover:bg-accent ${
@@ -45,8 +46,8 @@ export function TagAnalysis({ tags, onTagClick, onOccurrenceClick, highlightedTa
                 </CollapsibleTrigger>
                 <CollapsibleContent className="mt-2 space-y-2">
                   {tag.positions &&
-                    Object.entries(tag.positions).map(([fileId, positions]) =>
-                      positions.map((position, index) => (
+                    Object.entries(tag.positions)?.map(([fileId, positions]) =>
+                      positions?.map((position, index) => (
                         <TextOccurrence
                           key={`${fileId}-${index}`}
                           text={position.text}

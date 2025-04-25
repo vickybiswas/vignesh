@@ -1,10 +1,6 @@
-import type { Metadata } from 'next'
-import './globals.css'
+"use client"
 
-export const metadata: Metadata = {
-  title: 'Vignesh - The research assistant',
-  description: 'Easy-to-use, open-source Computer-Assisted Qualitative Data Analysis (CAQDAS) tool.',
-}
+import './globals.css'
 
 export default function RootLayout({
   children,

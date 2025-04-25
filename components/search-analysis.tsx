@@ -1,3 +1,4 @@
+"use-client"
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -63,7 +64,7 @@ export function SearchAnalysis({
                 </span>
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-2 space-y-2">
-                {currentSearchResults.map((result, index) => (
+                {currentSearchResults?.map((result, index) => (
                   <TextOccurrence
                     key={index}
                     text={result.text}
@@ -85,7 +86,7 @@ export function SearchAnalysis({
                 </span>
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-2 space-y-2">
-                {savedSearches.map((search, index) => {
+                {savedSearches?.map((search, index) => {
                   const searchResults = getSavedSearchResults(search)
                   return (
                     <Collapsible key={index}>
@@ -114,7 +115,7 @@ export function SearchAnalysis({
                         </Button>
                       </CollapsibleTrigger>
                       <CollapsibleContent className="mt-2 space-y-2">
-                        {searchResults.map((result, idx) => (
+                        {searchResults?.map((result, idx) => (
                           <TextOccurrence
                             key={idx}
                             text={result.text}
