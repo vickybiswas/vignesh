@@ -67,9 +67,9 @@ export function FileList({
      <div className="flex justify-between items-center">
      <h2 className="text-lg font-semibold">Files</h2>
       <div>
-      <Button size="icon" variant="outline" className="mr-2" onClick={() => setAddFilePopup(true)}>
+      {/* <Button size="icon" variant="outline" className="mr-2" onClick={() => setAddFilePopup(true)}>
           <Plus className="h-4 w-4" />
-        </Button>
+        </Button> */}
         <Button size="icon" variant="outline" onClick={() => fileInputRef.current?.click()}>
           <Upload className="h-4 w-4" />
         </Button>

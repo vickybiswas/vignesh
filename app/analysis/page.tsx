@@ -6,35 +6,7 @@ import { ArrowLeft } from 'lucide-react'
 import Link from "next/link"
 
 // This would typically come from your application state or API
-const sampleTags = {
-  "person": [
-    {
-      text: "John Smith",
-      start: 10,
-      end: 20
-    },
-    {
-      text: "Jane Doe",
-      start: 45,
-      end: 53
-    }
-  ],
-  "location": [
-    {
-      text: "New York City",
-      start: 100,
-      end: 112
-    }
-  ],
-  "date": [
-    {
-      text: "January 15, 2024",
-      start: 150,
-      end: 165
-    }
-  ]
-}
-
+ 
 const tagColors = {
   "person": "bg-yellow-200",
   "location": "bg-blue-200",
@@ -60,7 +32,7 @@ export default function AnalysisPage() {
             together, showing all occurrences and their contexts.
           </p>
         </div>
-        <TagAnalysis tags={sampleTags} colors={tagColors} />
+        <TagAnalysis tags={[]} colors={tagColors} />
       </div>
     </div>
   )

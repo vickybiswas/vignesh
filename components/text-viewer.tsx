@@ -294,6 +294,7 @@ export default function TextViewer() {
 
   const handleContentChange = useCallback(
     (newContent: string) => {
+      console.log(newContent,'newContent')
       setState((prevState) => ({
         ...prevState,
         files: {
@@ -965,7 +966,7 @@ export default function TextViewer() {
             <div
               ref={contentRef}
               className="text-lg p-4 border rounded relative whitespace-pre-wrap h-full overflow-auto"
-              contentEditable
+              contentEditable={false}
               suppressContentEditableWarning
               onInput={(e) => handleContentChange(e.currentTarget.textContent || "")}
               onContextMenu={handleContextMenu}
