@@ -671,6 +671,8 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
 
   const handleAddFile = useCallback(
     (fileName: string, content: string) => {
+      console.log(fileName,'fileName')
+      console.log(content,'content')
       if (!currentProject.files?.[fileName]) {
         setState((prevState) => {
           const newState = { ...prevState }
