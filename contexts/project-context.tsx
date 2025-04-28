@@ -324,8 +324,8 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state))
   }, [state])
 
-  // Calculate search occurrences when activeFile or searchTerm changes
-  useEffect(() => {
+   // Calculate search occurrences when activeFile or searchTerm changes
+   useEffect(() => {
     if (!searchTerm || !activeFile || !currentProject.files[activeFile]) return
 
     // Check if we already have this search term as a mark
@@ -377,11 +377,92 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
     }
   }, [activeFile, currentProject, projectName])
 
-  // Prevent infinite loop by not including searchTerm in the dependency array
-  // Instead, we'll handle search term changes manually
-  const handleSearchTermChange = useCallback((term: string) => {
-    setSearchTerm(term)
-  }, [])
+  // Function to perform search
+  const performSearch = useCallback(
+    (term: string) => {
+      if (!term || !activeFile || !currentProject.files[activeFile]) return
+
+      // Check if we already have this search term as a mark
+      const existingSearchMark = Object.entries(currentProject.marks || {}).find(
+        ([_, mark]) => mark.type === "Search" && mark.name.toLowerCase() === term.toLowerCase(),
+      )
+
+      if (existingSearchMark) return // Don't recalculate if already exists
+
+      // Find all occurrences in the text
+      const content = currentProject.files[activeFile].content
+      const results: Occurrence[] = []
+      let index = content.toLowerCase().indexOf(term.toLowerCase())
+      let counter = 0
+
+      // Generate a temporary ID for this search
+      const tempSearchId = `temp-search-${term.replace(/\s+/g, "-").toLowerCase()}`
+
+      while (index !== -1) {
+        results.push({
+          id: tempSearchId,
+          text: content.slice(index, index + term.length),
+          start: index,
+          end: index + term.length,
+        })
+        index = content.toLowerCase().indexOf(term.toLowerCase(), index + 1)
+        counter++
+        if (counter > 1000) break // Safety limit
+      }
+
+      // Update state with temporary search occurrences
+      if (results.length > 0) {
+        setState((prevState) => {
+          const newState = { ...prevState }
+          const newProject = { ...newState[projectName] }
+          const newFile = {
+            ...newProject.files[activeFile],
+            occurrences: [
+              ...(newProject.files[activeFile].occurrences || []).filter((occ) => !occ.id.startsWith("temp-")),
+              ...results,
+            ],
+          }
+
+          newProject.files = { ...newProject.files, [activeFile]: newFile }
+          newState[projectName] = newProject
+
+          return newState
+        })
+      }
+    },
+    [activeFile, currentProject, projectName],
+  )
+
+  // Handle search term change
+  const handleSearchTermChange = useCallback(
+    (term: string) => {
+      setSearchTerm(term)
+      if (term) {
+        performSearch(term)
+      } else {
+        // Clear temporary search results
+        setState((prevState) => {
+          const newState = { ...prevState }
+          const newProject = { ...newState[projectName] }
+
+          if (activeFile && newProject.files[activeFile]) {
+            const newFile = {
+              ...newProject.files[activeFile],
+              occurrences: (newProject.files[activeFile].occurrences || []).filter(
+                (occ) => !occ.id.startsWith("temp-"),
+              ),
+            }
+
+            newProject.files = { ...newProject.files, [activeFile]: newFile }
+            newState[projectName] = newProject
+          }
+
+          return newState
+        })
+      }
+    },
+    [activeFile, performSearch, projectName],
+  )
 
   const handleContextMenu = useCallback((event: React.MouseEvent) => {
     event.preventDefault()
@@ -510,23 +591,25 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
         },
       }
 
-      // Update temporary occurrences to use the new mark ID
-      const newFile = {
-        ...newProject.files[activeFile],
-        occurrences: (newProject.files[activeFile].occurrences || []).map((occ) => {
-          if (occ.id.startsWith("temp-") && occ.id.includes(searchTerm.toLowerCase())) {
-            return { ...occ, id: searchId }
+      // Update temporary occurrences to use the new mark ID in all files
+      Object.keys(newProject.files).forEach((fileName) => {
+        if (newProject.files[fileName].occurrences) {
+          newProject.files[fileName] = {
+            ...newProject.files[fileName],
+            occurrences: (newProject.files[fileName].occurrences || []).map((occ) => {
+              if (occ.id.startsWith("temp-") && occ.id.includes(searchTerm.toLowerCase())) {
+                return { ...occ, id: searchId }
+              }
+              return occ
+            }),
           }
-          return occ
-        }),
-      }
+        }
+      })
 
-      newProject.files = { ...newProject.files, [activeFile]: newFile }
       newState[projectName] = newProject
-
       return newState
     })
-  }, [activeFile, currentProject.marks, projectName, searchResults.length, searchTerm])
+  }, [currentProject.marks, projectName, searchTerm])
 
   // Get unique tag names
   const uniqueTagLabels = useMemo(() => {
@@ -556,17 +639,23 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
 
   const handleContentChange = useCallback(
     (newContent: string) => {
+      if (!activeFile) return
+
       setState((prevState) => {
         const newState = { ...prevState }
         const newProject = { ...newState[projectName] }
-        const newFile = {
-          ...newProject.files[activeFile],
-          content: newContent,
-          dirty: true,
-        }
 
-        newProject.files = { ...newProject.files, [activeFile]: newFile }
-        newState[projectName] = newProject
+        // Only update the active file
+        if (newProject.files[activeFile]) {
+          const newFile = {
+            ...newProject.files[activeFile],
+            content: newContent,
+            dirty: true,
+          }
+
+          newProject.files = { ...newProject.files, [activeFile]: newFile }
+          newState[projectName] = newProject
+        }
 
         return newState
       })
@@ -1206,10 +1295,14 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
     return searches
   }, [activeFile, currentFile.occurrences, currentProject.marks, searchTerm])
 
-  const handleSearch = useCallback((event: React.FormEvent) => {
-    event.preventDefault()
-    // Search is handled by the useEffect
-  }, [])
+  const handleSearch = useCallback(
+    (event: React.FormEvent) => {
+      event.preventDefault()
+      // Perform search with current search term
+      performSearch(searchTerm)
+    },
+    [performSearch, searchTerm],
+  )
 
   // Project management functions
   const createNewProject = useCallback(
