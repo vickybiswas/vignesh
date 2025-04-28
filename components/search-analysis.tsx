@@ -1,21 +1,27 @@
-"use-client"
+"use client"
+
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ChevronRight, Search, History, X } from "lucide-react"
 import { TextOccurrence } from "./text-occurrence"
-import type { Position } from "@/types"
 import { Button } from "@/components/ui/button"
 
 interface SearchAnalysisProps {
   content: string
-  currentSearchResults: Position[]
-  savedSearches: string[]
+  currentSearchResults: Array<{ text: string; start: number; stop: number }>
+  savedSearches: Array<{
+    id: string
+    text: string
+    color: string
+    occurrences: Array<{ text: string; start: number; stop: number }>
+  }>
   onSelectSearch: (search: string) => void
-  onSelectSpecificSearch: (result: Position) => void
+  onSelectSpecificSearch: (result: { start: number; stop: number }) => void
   onRemoveSearch: (search: string) => void
-  highlightedSearch: string | null
+  highlightedSearch: string
+  activeFile: string
 }
 
 export function SearchAnalysis({
@@ -26,25 +32,12 @@ export function SearchAnalysis({
   onSelectSpecificSearch,
   onRemoveSearch,
   highlightedSearch,
+  activeFile,
 }: SearchAnalysisProps) {
   const [expandedSavedSearch, setExpandedSavedSearch] = useState<string | null>(null)
 
-  const getSavedSearchResults = (searchTerm: string): Position[] => {
-    const results: Position[] = []
-    let index = content.toLowerCase().indexOf(searchTerm.toLowerCase())
-    while (index !== -1) {
-      results.push({
-        text: content.slice(index, index + searchTerm.length),
-        start: index,
-        stop: index + searchTerm.length,
-      })
-      index = content.toLowerCase().indexOf(searchTerm.toLowerCase(), index + 1)
-    }
-    return results
-  }
-
   return (
-    <Card className="w-full h-full">
+    <Card className="w-full">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Search className="h-5 w-5" />
@@ -52,7 +45,7 @@ export function SearchAnalysis({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-full pr-4">
+        <ScrollArea className="h-[300px] pr-4">
           <div className="space-y-4">
             <Collapsible>
               <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-lg border bg-card p-4 text-left hover:bg-accent">
@@ -64,7 +57,7 @@ export function SearchAnalysis({
                 </span>
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-2 space-y-2">
-                {currentSearchResults?.map((result, index) => (
+                {currentSearchResults.map((result, index) => (
                   <TextOccurrence
                     key={index}
                     text={result.text}
@@ -86,49 +79,46 @@ export function SearchAnalysis({
                 </span>
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-2 space-y-2">
-                {savedSearches?.map((search, index) => {
-                  const searchResults = getSavedSearchResults(search)
-                  return (
-                    <Collapsible key={index}>
-                      <CollapsibleTrigger
-                        className={`flex w-full items-center gap-2 rounded-lg border bg-card p-4 text-left hover:bg-accent ${
-                          highlightedSearch === search ? "bg-green-200" : ""
-                        }`}
-                        onClick={() => onSelectSearch(search)}
+                {savedSearches.map((search, index) => (
+                  <Collapsible key={index}>
+                    <CollapsibleTrigger
+                      className={`flex w-full items-center gap-2 rounded-lg border bg-card p-4 text-left hover:bg-accent ${
+                        highlightedSearch === search.text ? "bg-green-200" : ""
+                      }`}
+                      onClick={() => onSelectSearch(search.text)}
+                    >
+                      <ChevronRight className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-90" />
+                      <Search className="h-4 w-4 text-muted-foreground" />
+                      <span>{search.text}</span>
+                      <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground">
+                        {search.occurrences.length} {search.occurrences.length === 1 ? "occurrence" : "occurrences"}
+                      </span>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="ml-2 h-6 w-6"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onRemoveSearch(search.text)
+                        }}
                       >
-                        <ChevronRight className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-90" />
-                        <Search className="h-4 w-4 text-muted-foreground" />
-                        <span>{search}</span>
-                        <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground">
-                          {searchResults.length} {searchResults.length === 1 ? "occurrence" : "occurrences"}
-                        </span>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="ml-2 h-6 w-6"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onRemoveSearch(search)
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent className="mt-2 space-y-2">
-                        {searchResults?.map((result, idx) => (
-                          <TextOccurrence
-                            key={idx}
-                            text={result.text}
-                            start={result.start}
-                            stop={result.stop}
-                            isHighlighted={highlightedSearch === search}
-                            onClick={() => onSelectSpecificSearch(result)}
-                          />
-                        ))}
-                      </CollapsibleContent>
-                    </Collapsible>
-                  )
-                })}
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="mt-2 space-y-2">
+                      {search.occurrences.map((occurrence, idx) => (
+                        <TextOccurrence
+                          key={idx}
+                          text={occurrence.text}
+                          start={occurrence.start}
+                          stop={occurrence.stop}
+                          isHighlighted={highlightedSearch === search.text}
+                          onClick={() => onSelectSpecificSearch(occurrence)}
+                        />
+                      ))}
+                    </CollapsibleContent>
+                  </Collapsible>
+                ))}
               </CollapsibleContent>
             </Collapsible>
           </div>

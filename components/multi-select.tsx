@@ -56,4 +56,3 @@ export function MultiSelect({ options, selected, onChange, placeholder }: MultiS
     </Popover>
   )
 }
-

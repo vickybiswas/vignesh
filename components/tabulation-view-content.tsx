@@ -1,5 +1,5 @@
 "use client"
-import { useMemo, useCallback, useState, useContext } from "react"
+import { useMemo, useCallback, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { MultiSelect } from "./multi-select"
@@ -9,113 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { TextOccurrence } from "./text-occurrence"
-import { ProjectContext } from "@/contexts/project-context"
 
-type ExpansionType = 0 | 1 | 2 // 0: None, 1: Sentence, 2: Paragraph
-
-export function TabulationView() {
-  const {
-    showTabulationView,
-    setShowTabulationView,
-    currentProject,
-    activeFile,
-    handleSpecificSearchClick,
-    getAllMarksForTabulation,
-  } = useContext(ProjectContext)
-
-  if (!showTabulationView) return null
-
-  // Ensure we have valid objects
-  const files = currentProject?.files || {}
-  const marks = currentProject?.marks || {}
-  const groups = currentProject?.groups || {}
-
-  // Get all marks for tabulation (tags, searches, groups)
-  const allMarks = getAllMarksForTabulation()
-
-  // Prepare tabulation data
-  const tabulationData = {
-    markOptions: allMarks.map((mark) => `${mark.prefix} - ${mark.name}`),
-    files: Object.keys(files),
-    activeFile,
-    getOccurrences: (markOption: string, fileName: string) => {
-      // Parse the mark option to get prefix and name
-      const [prefix, ...nameParts] = markOption.split(" - ")
-      const name = nameParts.join(" - ")
-
-      // Find the mark by prefix and name
-      const mark = allMarks.find((m) => m.prefix === prefix && m.name === name)
-      if (!mark) return []
-
-      // If it's a group, get occurrences for all marks in the group
-      if (prefix === "Group") {
-        const groupId = mark.id
-        const group = groups[groupId]
-        if (!group) return []
-
-        // Collect occurrences from all marks in the group
-        const allOccurrences: Array<{
-          text: string
-          start: number
-          end: number
-          file: string
-        }> = []
-
-        // For each mark in the group
-        ;(group.marks || []).forEach((markId) => {
-          const markObj = marks[markId]
-          if (!markObj) return
-
-          // Get occurrences for this mark
-          const file = files[fileName]
-          if (!file) return
-
-          const occurrences = (file.occurrences || [])
-            .filter((occ) => occ.id === markId)
-            .map((occ) => ({
-              text: occ.text || "",
-              start: occ.start || 0,
-              end: occ.end || 0,
-              file: fileName,
-            }))
-
-          allOccurrences.push(...occurrences)
-        })
-
-        return allOccurrences
-      }
-
-      // For tags and searches, find the mark ID
-      const markId = mark.id
-
-      // Get occurrences for this mark
-      const file = files[fileName]
-      if (!file) return []
-
-      return (file.occurrences || [])
-        .filter((occ) => occ.id === markId)
-        .map((occ) => ({
-          text: occ.text || "",
-          start: occ.start || 0,
-          end: occ.end || 0,
-          file: fileName,
-        }))
-    },
-  }
-
-  return (
-    <TabulationViewContent
-      data={tabulationData}
-      onClose={() => setShowTabulationView(false)}
-      onSelectOccurrence={(occurrence) => {
-        handleSpecificSearchClick(occurrence)
-        setShowTabulationView(false)
-      }}
-    />
-  )
-}
-
-interface TabulationViewProps {
+// Updated interface for the new state structure
+interface TabulationViewContentProps {
   data: {
     markOptions: string[]
     files: string[]
@@ -134,7 +30,9 @@ interface TabulationViewProps {
   onSelectOccurrence: (occurrence: { text: string; start: number; end: number; file: string }) => void
 }
 
-export function TabulationViewContent({ data, onClose, onSelectOccurrence }: TabulationViewProps) {
+type ExpansionType = 0 | 1 | 2 // 0: None, 1: Sentence, 2: Paragraph
+
+export function TabulationViewContent({ data, onClose, onSelectOccurrence }: TabulationViewContentProps) {
   // State for tabulation configuration
   const [rowSelections, setRowSelections] = useState<string[]>([])
   const [columnSelections, setColumnSelections] = useState<string[]>([])
@@ -305,32 +203,26 @@ export function TabulationViewContent({ data, onClose, onSelectOccurrence }: Tab
       </CardHeader>
       <CardContent className="flex-grow overflow-auto">
         <div className="space-y-4">
-          <div className="flex flex-wrap gap-4">
-            <div className="flex-1 min-w-[250px]">
-              <label className="text-sm font-medium mb-1 block">Row Items</label>
-              <MultiSelect
-                options={data.markOptions}
-                selected={rowSelections}
-                onChange={setRowSelections}
-                placeholder="Select row items"
-              />
-            </div>
-            <div className="flex-1 min-w-[250px]">
-              <label className="text-sm font-medium mb-1 block">Column Items</label>
-              <MultiSelect
-                options={data.markOptions}
-                selected={columnSelections}
-                onChange={setColumnSelections}
-                placeholder="Select column items"
-              />
-            </div>
-            <div className="min-w-[180px]">
-              <label className="text-sm font-medium mb-1 block">Extend Search Type</label>
+          <div className="flex gap-4">
+            <MultiSelect
+              options={data.markOptions}
+              selected={rowSelections}
+              onChange={setRowSelections}
+              placeholder="Select row items"
+            />
+            <MultiSelect
+              options={data.markOptions}
+              selected={columnSelections}
+              onChange={setColumnSelections}
+              placeholder="Select column items"
+            />
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-medium">Extend Search Type</span>
               <Select
                 value={expansionType.toString()}
                 onValueChange={(value) => setExpansionType(Number.parseInt(value) as ExpansionType)}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Select expansion type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -342,43 +234,41 @@ export function TabulationViewContent({ data, onClose, onSelectOccurrence }: Tab
             </div>
           </div>
           {tabulationData ? (
-            <div className="overflow-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[200px]">Intersection</TableHead>
-                    {columnSelections.map((col) => (
-                      <TableHead key={col}>{col}</TableHead>
-                    ))}
-                    <TableHead>Total</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rowSelections.map((row) => (
-                    <TableRow key={row}>
-                      <TableCell className="font-medium">{row}</TableCell>
-                      {columnSelections.map((col) => (
-                        <TableCell
-                          key={col}
-                          className="cursor-pointer hover:bg-muted"
-                          onClick={() => setSelectedCell({ row, col })}
-                        >
-                          {tabulationData[row][col].count}
-                        </TableCell>
-                      ))}
-                      <TableCell>{tabulationData[row]["Total"].count}</TableCell>
-                    </TableRow>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[100px]">Intersection</TableHead>
+                  {columnSelections.map((col) => (
+                    <TableHead key={col}>{col}</TableHead>
                   ))}
-                  <TableRow>
-                    <TableCell className="font-medium">Total</TableCell>
+                  <TableHead>Total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rowSelections.map((row) => (
+                  <TableRow key={row}>
+                    <TableCell className="font-medium">{row}</TableCell>
                     {columnSelections.map((col) => (
-                      <TableCell key={col}>{tabulationData["Total"][col].count}</TableCell>
+                      <TableCell
+                        key={col}
+                        className="cursor-pointer hover:bg-muted"
+                        onClick={() => setSelectedCell({ row, col })}
+                      >
+                        {tabulationData[row][col].count}
+                      </TableCell>
                     ))}
-                    <TableCell>{tabulationData["Total"]["Total"].count}</TableCell>
+                    <TableCell>{tabulationData[row]["Total"].count}</TableCell>
                   </TableRow>
-                </TableBody>
-              </Table>
-            </div>
+                ))}
+                <TableRow>
+                  <TableCell className="font-medium">Total</TableCell>
+                  {columnSelections.map((col) => (
+                    <TableCell key={col}>{tabulationData["Total"][col].count}</TableCell>
+                  ))}
+                  <TableCell>{tabulationData["Total"]["Total"].count}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
           ) : (
             <div className="text-center text-muted-foreground">
               Select row and column items to generate the tabulation.

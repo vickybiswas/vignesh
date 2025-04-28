@@ -1,6 +1,3 @@
-"use client"
-
-
 // For demo purposes, this API route will always return a successful response with fallback synonyms
 export async function POST(req: Request) {
   try {

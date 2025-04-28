@@ -2,37 +2,31 @@
 
 import type React from "react"
 
-import { useState, useRef, useCallback } from "react"
+import { useContext, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, Upload, Download, Trash } from "lucide-react"
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu"
+import { ProjectContext } from "@/contexts/project-context"
+import { useState } from "react"
 
-interface FileListProps {
-  files: string[]
-  activeFile: string
-  onSelectFile: (file: string) => void
-  onAddFile: (fileName: string, content: string) => void
-  onUploadFile: (file: File) => void
-  onSaveFile: (fileName: string) => void
-  onRemoveFile: (fileName: string) => void
-}
+export function FilesSidebar() {
+  const {
+    currentProject,
+    activeFile,
+    handleSelectFile,
+    handleAddFile,
+    handleUploadFile,
+    handleSaveFile,
+    handleRemoveFile,
+  } = useContext(ProjectContext)
 
-export function FileList({
-  files,
-  activeFile,
-  onSelectFile,
-  onAddFile,
-  onUploadFile,
-  onSaveFile,
-  onRemoveFile,
-}: FileListProps) {
   const [newFileName, setNewFileName] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleAddFile = () => {
+  const handleAddFileClick = () => {
     if (newFileName.trim()) {
-      onAddFile(newFileName.trim(), "")
+      handleAddFile(newFileName.trim(), "")
       setNewFileName("")
     }
   }
@@ -40,36 +34,35 @@ export function FileList({
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
-      onUploadFile(file)
+      handleUploadFile(file)
     }
   }
 
-  const handleContextMenu = useCallback((e: React.MouseEvent, fileName: string) => {
-    e.preventDefault()
-  }, [])
+  // Ensure currentProject.files exists before trying to use it
+  const files = currentProject?.files || {}
 
   return (
-    <div className="w-64 border-r p-4 h-full flex flex-col">
+    <div className="w-48 md:w-64 border-r p-2 md:p-4 h-full flex flex-col">
       <h2 className="text-lg font-semibold mb-4">Files</h2>
       <ul className="space-y-2 flex-grow overflow-auto">
-        {files.map((file) => (
+        {Object.keys(files).map((file) => (
           <li key={file}>
             <ContextMenu>
               <ContextMenuTrigger asChild>
                 <Button
                   variant={file === activeFile ? "secondary" : "ghost"}
-                  className="w-full justify-start"
-                  onClick={() => onSelectFile(file)}
+                  className="w-full justify-start text-sm md:text-base truncate"
+                  onClick={() => handleSelectFile(file)}
                 >
                   {file}
                 </Button>
               </ContextMenuTrigger>
               <ContextMenuContent>
-                <ContextMenuItem onClick={() => onSaveFile(file)}>
+                <ContextMenuItem onClick={() => handleSaveFile(file)}>
                   <Download className="mr-2 h-4 w-4" />
                   Save to PC
                 </ContextMenuItem>
-                <ContextMenuItem onClick={() => onRemoveFile(file)}>
+                <ContextMenuItem onClick={() => handleRemoveFile(file)}>
                   <Trash className="mr-2 h-4 w-4" />
                   Remove
                 </ContextMenuItem>
@@ -85,9 +78,9 @@ export function FileList({
             placeholder="New file name"
             value={newFileName}
             onChange={(e) => setNewFileName(e.target.value)}
-            onKeyPress={(e) => e.key === "Enter" && handleAddFile()}
+            onKeyPress={(e) => e.key === "Enter" && handleAddFileClick()}
           />
-          <Button size="icon" onClick={handleAddFile}>
+          <Button size="icon" onClick={handleAddFileClick}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>

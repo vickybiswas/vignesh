@@ -1,35 +1,18 @@
 "use client"
 
 import type React from "react"
-import { useState, useCallback, useMemo, useRef, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { TagAnalysis } from "./tag-analysis"
-import { SearchAnalysis } from "./search-analysis"
-import { TabulationView } from "./tabulation-view"
-import { FileList } from "./file-list"
-import { UserDropdown } from "./user-dropdown"
-import { Search, Save, Table, X, Download, Upload, BookOpen, Edit } from "lucide-react"
+
+import { createContext, useState, useRef, useCallback, useMemo, useEffect, type ReactNode } from "react"
 import { generatePastelColor } from "@/utils/colors"
-import { SynonymsPopup } from "./synonyms-popup"
 
 const LOCAL_STORAGE_KEY = "textViewerState"
 
-// New state structure
+// Types
 interface Occurrence {
-  id: string // ID of Mark
+  id: string
   start: number
   end: number
-  text: string // Text at position from content
+  text: string
 }
 
 interface TextFile {
@@ -46,7 +29,8 @@ interface Mark {
 
 interface Group {
   name: string
-  marks: string[] // Array of mark IDs
+  marks: string[]
+  color: string
 }
 
 interface Project {
@@ -59,88 +43,199 @@ interface AppState {
   [projectName: string]: Project
 }
 
-export default function TextViewer() {
+interface ProjectContextType {
+  state: AppState
+  projectName: string
+  setProjectName: (name: string) => void
+  projectNames: string[]
+  currentProject: Project
+  activeFile: string
+  setActiveFile: (file: string) => void
+  currentFile: TextFile
+  selectedTagFilter: string
+  setSelectedTagFilter: (filter: string) => void
+  searchTerm: string
+  setSearchTerm: (term: string) => void
+  showTabulationView: boolean
+  setShowTabulationView: (show: boolean) => void
+  showSynonymsPopup: boolean
+  setShowSynonymsPopup: (show: boolean) => void
+  synonyms: string[]
+  setSynonyms: (synonyms: string[]) => void
+  isFetchingSynonyms: boolean
+  setIsFetchingSynonyms: (isFetching: boolean) => void
+  isNewTagDialogOpen: boolean
+  setIsNewTagDialogOpen: (isOpen: boolean) => void
+  isNewGroupDialogOpen: boolean
+  setIsNewGroupDialogOpen: (isOpen: boolean) => void
+  isEditGroupDialogOpen: boolean
+  setIsEditGroupDialogOpen: (isOpen: boolean) => void
+  isRefreshingSearch: boolean
+  setIsRefreshingSearch: (isRefreshing: boolean) => void
+  newTagLabel: string
+  setNewTagLabel: (label: string) => void
+  newGroupName: string
+  setNewGroupName: (name: string) => void
+  selectedGroupForEdit: string | null
+  setSelectedGroupForEdit: (groupId: string | null) => void
+  contentRef: React.RefObject<HTMLDivElement>
+  fileInputRef: React.RefObject<HTMLInputElement>
+  selection: { start: number; end: number } | null
+  setSelection: (selection: { start: number; end: number } | null) => void
+  contextMenuPosition: { x: number; y: number } | null
+  setContextMenuPosition: (position: { x: number; y: number } | null) => void
+  searchResults: Occurrence[]
+  uniqueTagLabels: string[]
+  savedSearches: Array<{ id: string; name: string; color: string }>
+  groups: Array<{ id: string; name: string; color: string; marks: string[] }>
+
+  // Functions
+  handleSelectFile: (fileName: string) => void
+  handleAddFile: (fileName: string, content: string) => void
+  handleUploadFile: (file: File) => void
+  handleSaveFile: (fileName: string) => void
+  handleRemoveFile: (fileName: string) => void
+  handleTagClick: (label: string) => void
+  handleSearchClick: (search: string) => void
+  handleSpecificSearchClick: (position: { start: number; end: number }) => void
+  handleTagFilterChange: (value: string) => void
+  handleContentChange: (newContent: string) => void
+  handleContextMenu: (event: React.MouseEvent) => void
+  addTag: (label: string, type?: "Tag" | "Search") => void
+  handleNewTag: () => void
+  submitNewTag: () => void
+  saveSearch: () => void
+  fetchSynonyms: () => Promise<void>
+  handleSaveSynonyms: (selectedSynonyms: string[]) => void
+  handleDownloadState: () => void
+  handleUploadState: (event: React.ChangeEvent<HTMLInputElement>) => void
+  handleRemoveSearch: (searchName: string) => void
+  handleRemoveTag: (tagId: string) => void
+  handleRemoveOccurrence: (tagId: string, position: { start: number; end: number }) => void
+  renderContent: () => React.ReactNode
+  prepareTagsForAnalysis: () => Array<{
+    id: string
+    text: string
+    color: string
+    positions: Record<string, Array<{ text: string; start: number; stop: number }>>
+  }>
+  prepareSearchesForAnalysis: () => Array<{
+    id: string
+    text: string
+    color: string
+    occurrences: Array<{ text: string; start: number; stop: number }>
+  }>
+  handleSearch: (event: React.FormEvent) => void
+  createNewProject: (name: string) => void
+  switchProject: (name: string) => void
+  createGroup: (name: string) => void
+  addMarkToGroup: (groupId: string, markId: string) => void
+  removeMarkFromGroup: (groupId: string, markId: string) => void
+  deleteGroup: (groupId: string) => void
+  updateGroupMarks: (groupId: string, markIds: string[]) => void
+  refreshAllSearches: () => void
+  getMarksByGroup: (groupId: string) => Array<{ id: string; name: string; type: "Tag" | "Search"; color: string }>
+  getAllMarksForTabulation: () => Array<{ id: string; name: string; prefix: string; color: string }>
+}
+
+export const ProjectContext = createContext<ProjectContextType>({} as ProjectContextType)
+
+interface ProjectProviderProps {
+  children: ReactNode
+}
+
+export function ProjectProvider({ children }: ProjectProviderProps) {
   const [projectName, setProjectName] = useState<string>("Text Analysis Project")
   const [state, setState] = useState<AppState>(() => {
     if (typeof window !== "undefined") {
-      const savedState = localStorage.getItem(LOCAL_STORAGE_KEY)
-      if (savedState) {
-        try {
-          // Try to parse the saved state
+      try {
+        const savedState = localStorage.getItem(LOCAL_STORAGE_KEY)
+        if (savedState) {
           const parsed = JSON.parse(savedState)
 
           // Check if the saved state has the new structure
-          if (parsed[Object.keys(parsed)[0]]?.files && parsed[Object.keys(parsed)[0]]?.marks) {
-            return parsed
-          }
-
-          // If it has the old structure, convert it
-          const newState: AppState = {}
-
-          // If it's the previous version with projectName at the top level
-          if (parsed.projectName && parsed.files && parsed.tags) {
-            const projectName = parsed.projectName
-            newState[projectName] = {
-              files: {},
-              marks: {},
-              groups: {},
-            }
-
-            // Convert files
-            Object.entries(parsed.files).forEach(([fileName, fileData]: [string, any]) => {
-              newState[projectName].files[fileName] = {
-                content: fileData.content,
-                occurrences: [],
-                dirty: fileData.dirty,
-              }
-            })
-
-            // Convert tags to marks
-            Object.entries(parsed.tags).forEach(([tagId, tagData]: [string, any]) => {
-              const markId = tagId
-
-              // Add mark
-              newState[projectName].marks[markId] = {
-                color: tagData.color,
-                type: tagData.type,
-                name: tagData.text,
-              }
-
-              // Add occurrences to files
-              if (tagData.occurrences) {
-                tagData.occurrences.forEach((occ: any) => {
-                  if (newState[projectName].files[occ.fileId]) {
-                    newState[projectName].files[occ.fileId].occurrences.push({
-                      id: markId,
-                      start: occ.start,
-                      end: occ.end,
-                      text: occ.text,
-                    })
+          if (
+            parsed &&
+            typeof parsed === "object" &&
+            Object.keys(parsed).length > 0 &&
+            parsed[Object.keys(parsed)[0]]?.files &&
+            parsed[Object.keys(parsed)[0]]?.marks
+          ) {
+            // Ensure groups have color property
+            Object.keys(parsed).forEach((projectKey) => {
+              if (parsed[projectKey].groups) {
+                Object.keys(parsed[projectKey].groups).forEach((groupId) => {
+                  if (!parsed[projectKey].groups[groupId].color) {
+                    parsed[projectKey].groups[groupId].color = generatePastelColor()
                   }
                 })
               }
             })
-
-            return newState
+            return parsed
           }
 
-          // Default state if conversion fails
-          return {
-            "Text Analysis Project": {
-              files: {
-                "sample.txt": {
-                  content:
-                    "This is a sample text. You can right-click on any part of this text to add tags to it, including overlapping tags.",
-                  occurrences: [],
-                },
-              },
-              marks: {},
-              groups: {},
-            },
+          // If it has the old structure, convert it
+          if (parsed && typeof parsed === "object") {
+            const newState: AppState = {}
+
+            // If it's the previous version with projectName at the top level
+            if (parsed.projectName && parsed.files && parsed.tags) {
+              const projectName = parsed.projectName
+              newState[projectName] = {
+                files: {},
+                marks: {},
+                groups: {},
+              }
+
+              // Convert files
+              if (parsed.files && typeof parsed.files === "object") {
+                Object.entries(parsed.files).forEach(([fileName, fileData]: [string, any]) => {
+                  if (fileData) {
+                    newState[projectName].files[fileName] = {
+                      content: fileData.content || "",
+                      occurrences: [],
+                      dirty: !!fileData.dirty,
+                    }
+                  }
+                })
+              }
+
+              // Convert tags to marks
+              if (parsed.tags && typeof parsed.tags === "object") {
+                Object.entries(parsed.tags).forEach(([tagId, tagData]: [string, any]) => {
+                  if (tagData) {
+                    const markId = tagId
+
+                    // Add mark
+                    newState[projectName].marks[markId] = {
+                      color: tagData.color || generatePastelColor(),
+                      type: tagData.type || "Tag",
+                      name: tagData.text || "Unnamed Tag",
+                    }
+
+                    // Add occurrences to files
+                    if (tagData.occurrences && Array.isArray(tagData.occurrences)) {
+                      tagData.occurrences.forEach((occ: any) => {
+                        if (occ && occ.fileId && newState[projectName].files[occ.fileId]) {
+                          newState[projectName].files[occ.fileId].occurrences.push({
+                            id: markId,
+                            start: occ.start || 0,
+                            end: occ.end || 0,
+                            text: occ.text || "",
+                          })
+                        }
+                      })
+                    }
+                  }
+                })
+              }
+
+              return newState
+            }
           }
-        } catch (e) {
-          console.error("Error parsing saved state:", e)
         }
+      } catch (e) {
+        console.error("Error parsing saved state:", e)
       }
     }
 
@@ -163,8 +258,8 @@ export default function TextViewer() {
   const [activeFile, setActiveFile] = useState<string>(() => {
     // Initialize with the first file in the project
     const project = state[projectName]
-    if (project && project.files) {
-      return Object.keys(project.files)[0] || ""
+    if (project && project.files && Object.keys(project.files).length > 0) {
+      return Object.keys(project.files)[0]
     }
     return ""
   })
@@ -172,26 +267,57 @@ export default function TextViewer() {
   const [selection, setSelection] = useState<{ start: number; end: number } | null>(null)
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null)
   const [newTagLabel, setNewTagLabel] = useState<string>("")
+  const [newGroupName, setNewGroupName] = useState<string>("")
+  const [selectedGroupForEdit, setSelectedGroupForEdit] = useState<string | null>(null)
   const [isNewTagDialogOpen, setIsNewTagDialogOpen] = useState<boolean>(false)
+  const [isNewGroupDialogOpen, setIsNewGroupDialogOpen] = useState<boolean>(false)
+  const [isEditGroupDialogOpen, setIsEditGroupDialogOpen] = useState<boolean>(false)
+  const [isRefreshingSearch, setIsRefreshingSearch] = useState<boolean>(false)
   const [selectedTagFilter, setSelectedTagFilter] = useState<string>("all")
   const [searchTerm, setSearchTerm] = useState<string>("")
   const [showTabulationView, setShowTabulationView] = useState<boolean>(false)
   const [showSynonymsPopup, setShowSynonymsPopup] = useState<boolean>(false)
   const [synonyms, setSynonyms] = useState<string[]>([])
   const [isFetchingSynonyms, setIsFetchingSynonyms] = useState<boolean>(false)
-  const [isProjectNameDialogOpen, setIsProjectNameDialogOpen] = useState<boolean>(false)
-  const [editedProjectName, setEditedProjectName] = useState<string>(projectName)
   const contentRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Get list of project names
+  const projectNames = useMemo(() => {
+    return Object.keys(state)
+  }, [state])
+
   // Get current project
-  const currentProject = useMemo(() => state[projectName] || { files: {}, marks: {}, groups: {} }, [state, projectName])
+  const currentProject = useMemo(() => {
+    const project = state[projectName]
+    return project || { files: {}, marks: {}, groups: {} }
+  }, [state, projectName])
 
   // Get current file
-  const currentFile = useMemo(
-    () => currentProject.files[activeFile] || { content: "", occurrences: [] },
-    [currentProject, activeFile],
-  )
+  const currentFile = useMemo(() => {
+    if (!currentProject || !currentProject.files || !activeFile) {
+      return { content: "", occurrences: [] }
+    }
+    return currentProject.files[activeFile] || { content: "", occurrences: [] }
+  }, [currentProject, activeFile])
+
+  // Get groups
+  const groups = useMemo(() => {
+    const groupsArray: Array<{ id: string; name: string; color: string; marks: string[] }> = []
+
+    if (currentProject && currentProject.groups) {
+      Object.entries(currentProject.groups).forEach(([id, group]) => {
+        groupsArray.push({
+          id,
+          name: group.name,
+          color: group.color || generatePastelColor(),
+          marks: group.marks || [],
+        })
+      })
+    }
+
+    return groupsArray
+  }, [currentProject])
 
   // Save state to localStorage whenever it changes
   useEffect(() => {
@@ -203,7 +329,7 @@ export default function TextViewer() {
     if (!searchTerm || !activeFile || !currentProject.files[activeFile]) return
 
     // Check if we already have this search term as a mark
-    const existingSearchMark = Object.entries(currentProject.marks).find(
+    const existingSearchMark = Object.entries(currentProject.marks || {}).find(
       ([_, mark]) => mark.type === "Search" && mark.name.toLowerCase() === searchTerm.toLowerCase(),
     )
 
@@ -238,7 +364,7 @@ export default function TextViewer() {
         const newFile = {
           ...newProject.files[activeFile],
           occurrences: [
-            ...newProject.files[activeFile].occurrences.filter((occ) => !occ.id.startsWith("temp-")),
+            ...(newProject.files[activeFile].occurrences || []).filter((occ) => !occ.id.startsWith("temp-")),
             ...results,
           ],
         }
@@ -249,7 +375,13 @@ export default function TextViewer() {
         return newState
       })
     }
-  }, [activeFile, searchTerm, currentProject, projectName])
+  }, [activeFile, currentProject, projectName])
+
+  // Prevent infinite loop by not including searchTerm in the dependency array
+  // Instead, we'll handle search term changes manually
+  const handleSearchTermChange = useCallback((term: string) => {
+    setSearchTerm(term)
+  }, [])
 
   const handleContextMenu = useCallback((event: React.MouseEvent) => {
     event.preventDefault()
@@ -279,7 +411,7 @@ export default function TextViewer() {
       const markId = `${type.toLowerCase()}-${label.replace(/\s+/g, "-").toLowerCase()}-${Date.now()}`
 
       // Check if a similar mark already exists
-      const existingMarkId = Object.entries(currentProject.marks).find(
+      const existingMarkId = Object.entries(currentProject.marks || {}).find(
         ([_, mark]) => mark.type === type && mark.name.toLowerCase() === label.toLowerCase(),
       )?.[0]
 
@@ -303,7 +435,7 @@ export default function TextViewer() {
         const newFile = {
           ...newProject.files[activeFile],
           occurrences: [
-            ...newProject.files[activeFile].occurrences,
+            ...(newProject.files[activeFile].occurrences || []),
             {
               id: existingMarkId || markId,
               start: selection.start,
@@ -337,31 +469,19 @@ export default function TextViewer() {
     }
   }, [addTag, newTagLabel])
 
-  const getFilteredTags = useCallback(() => {
-    const tags: Array<{ id: string; name: string; color: string }> = []
-
-    Object.entries(currentProject.marks).forEach(([id, mark]) => {
-      if (mark.type === "Tag" && (selectedTagFilter === "all" || mark.name === selectedTagFilter)) {
-        tags.push({ id, name: mark.name, color: mark.color })
-      }
-    })
-
-    return tags
-  }, [currentProject.marks, selectedTagFilter])
-
   // Get search results for the current search term
   const searchResults = useMemo(() => {
-    if (!searchTerm || !activeFile) return []
+    if (!searchTerm || !activeFile || !currentFile) return []
 
-    return currentFile.occurrences.filter((occ) => {
+    return (currentFile.occurrences || []).filter((occ) => {
       // Check if this occurrence is for the current search term
-      const mark = currentProject.marks[occ.id]
+      const mark = currentProject.marks?.[occ.id]
       return (
         (mark?.type === "Search" && mark.name.toLowerCase() === searchTerm.toLowerCase()) ||
         (occ.id.startsWith("temp-") && occ.id.includes(searchTerm.toLowerCase()))
       )
     })
-  }, [activeFile, currentFile.occurrences, currentProject.marks, searchTerm])
+  }, [activeFile, currentFile, currentProject.marks, searchTerm])
 
   const saveSearch = useCallback(() => {
     if (!searchTerm || searchResults.length === 0) return
@@ -370,7 +490,7 @@ export default function TextViewer() {
     const searchId = `search-${searchTerm.replace(/\s+/g, "-").toLowerCase()}-${Date.now()}`
 
     // Check if a similar search mark already exists
-    const existingSearchId = Object.entries(currentProject.marks).find(
+    const existingSearchId = Object.entries(currentProject.marks || {}).find(
       ([_, mark]) => mark.type === "Search" && mark.name.toLowerCase() === searchTerm.toLowerCase(),
     )?.[0]
 
@@ -393,7 +513,7 @@ export default function TextViewer() {
       // Update temporary occurrences to use the new mark ID
       const newFile = {
         ...newProject.files[activeFile],
-        occurrences: newProject.files[activeFile].occurrences.map((occ) => {
+        occurrences: (newProject.files[activeFile].occurrences || []).map((occ) => {
           if (occ.id.startsWith("temp-") && occ.id.includes(searchTerm.toLowerCase())) {
             return { ...occ, id: searchId }
           }
@@ -412,7 +532,7 @@ export default function TextViewer() {
   const uniqueTagLabels = useMemo(() => {
     const labels: string[] = []
 
-    Object.values(currentProject.marks).forEach((mark) => {
+    Object.values(currentProject.marks || {}).forEach((mark) => {
       if (mark.type === "Tag" && !labels.includes(mark.name)) {
         labels.push(mark.name)
       }
@@ -425,7 +545,7 @@ export default function TextViewer() {
   const savedSearches = useMemo(() => {
     const searches: Array<{ id: string; name: string; color: string }> = []
 
-    Object.entries(currentProject.marks).forEach(([id, mark]) => {
+    Object.entries(currentProject.marks || {}).forEach(([id, mark]) => {
       if (mark.type === "Search") {
         searches.push({ id, name: mark.name, color: mark.color })
       }
@@ -462,7 +582,7 @@ export default function TextViewer() {
 
   const handleAddFile = useCallback(
     (fileName: string, content: string) => {
-      if (!currentProject.files[fileName]) {
+      if (!currentProject.files?.[fileName]) {
         setState((prevState) => {
           const newState = { ...prevState }
           const newProject = { ...newState[projectName] }
@@ -530,15 +650,6 @@ export default function TextViewer() {
     setSearchTerm("")
   }, [])
 
-  const handleTabulationOccurrenceSelect = useCallback(
-    (occurrence: { text: string; start: number; end: number; file: string }) => {
-      setActiveFile(occurrence.file)
-      handleSpecificSearchClick(occurrence)
-      setShowTabulationView(false)
-    },
-    [handleSpecificSearchClick],
-  )
-
   const handleDownloadState = useCallback(() => {
     const stateString = JSON.stringify(state, null, 2)
     const blob = new Blob([stateString], { type: "application/json" })
@@ -568,7 +679,7 @@ export default function TextViewer() {
             setProjectName(firstProjectName)
 
             // Set active file to the first file in the project
-            const firstFileName = Object.keys(uploadedState[firstProjectName].files)[0]
+            const firstFileName = Object.keys(uploadedState[firstProjectName].files || {})[0]
             if (firstFileName) {
               setActiveFile(firstFileName)
             }
@@ -583,29 +694,36 @@ export default function TextViewer() {
   }, [])
 
   const handleRemoveSearch = useCallback(
-    (searchId: string) => {
+    (searchName: string) => {
+      // Find the search ID by name
+      const searchId = Object.entries(currentProject.marks || {}).find(
+        ([_, mark]) => mark.type === "Search" && mark.name === searchName,
+      )?.[0]
+
+      if (!searchId) return
+
       setState((prevState) => {
         const newState = { ...prevState }
         const newProject = { ...newState[projectName] }
 
         // Remove the mark
-        const { [searchId]: _, ...remainingMarks } = newProject.marks
+        const { [searchId]: _, ...remainingMarks } = newProject.marks || {}
         newProject.marks = remainingMarks
 
         // Remove occurrences from all files
-        Object.keys(newProject.files).forEach((fileName) => {
+        Object.keys(newProject.files || {}).forEach((fileName) => {
           newProject.files[fileName] = {
             ...newProject.files[fileName],
-            occurrences: newProject.files[fileName].occurrences.filter((occ) => occ.id !== searchId),
+            occurrences: (newProject.files[fileName].occurrences || []).filter((occ) => occ.id !== searchId),
           }
         })
 
         // Remove from groups
-        Object.keys(newProject.groups).forEach((groupId) => {
-          if (newProject.groups[groupId].marks.includes(searchId)) {
+        Object.keys(newProject.groups || {}).forEach((groupId) => {
+          if ((newProject.groups[groupId].marks || []).includes(searchId)) {
             newProject.groups[groupId] = {
               ...newProject.groups[groupId],
-              marks: newProject.groups[groupId].marks.filter((id) => id !== searchId),
+              marks: (newProject.groups[groupId].marks || []).filter((id) => id !== searchId),
             }
           }
         })
@@ -614,12 +732,76 @@ export default function TextViewer() {
         return newState
       })
     },
-    [projectName],
+    [currentProject.marks, projectName],
+  )
+
+  const handleRemoveTag = useCallback(
+    (tagId: string) => {
+      setState((prevState) => {
+        const newState = { ...prevState }
+        const newProject = { ...newState[projectName] }
+
+        // Remove the mark
+        const { [tagId]: _, ...remainingMarks } = newProject.marks || {}
+        newProject.marks = remainingMarks
+
+        // Remove occurrences from all files
+        Object.keys(newProject.files || {}).forEach((fileName) => {
+          newProject.files[fileName] = {
+            ...newProject.files[fileName],
+            occurrences: (newProject.files[fileName].occurrences || []).filter((occ) => occ.id !== tagId),
+          }
+        })
+
+        // Remove from groups
+        Object.keys(newProject.groups || {}).forEach((groupId) => {
+          if ((newProject.groups[groupId].marks || []).includes(tagId)) {
+            newProject.groups[groupId] = {
+              ...newProject.groups[groupId],
+              marks: (newProject.groups[groupId].marks || []).filter((id) => id !== tagId),
+            }
+          }
+        })
+
+        newState[projectName] = newProject
+        return newState
+      })
+
+      // Reset tag filter if it was the removed tag
+      const removedTag = currentProject.marks?.[tagId]
+      if (removedTag && selectedTagFilter === removedTag.name) {
+        setSelectedTagFilter("all")
+      }
+    },
+    [currentProject.marks, projectName, selectedTagFilter],
+  )
+
+  const handleRemoveOccurrence = useCallback(
+    (tagId: string, position: { start: number; end: number }) => {
+      if (!activeFile) return
+
+      setState((prevState) => {
+        const newState = { ...prevState }
+        const newProject = { ...newState[projectName] }
+        const newFile = {
+          ...newProject.files[activeFile],
+          occurrences: (newProject.files[activeFile].occurrences || []).filter(
+            (occ) => !(occ.id === tagId && occ.start === position.start && occ.end === position.end),
+          ),
+        }
+
+        newProject.files = { ...newProject.files, [activeFile]: newFile }
+        newState[projectName] = newProject
+
+        return newState
+      })
+    },
+    [activeFile, projectName],
   )
 
   const handleSaveFile = useCallback(
     (fileName: string) => {
-      const fileContent = currentProject.files[fileName].content
+      const fileContent = currentProject.files?.[fileName]?.content || ""
       const blob = new Blob([fileContent], { type: "text/plain;charset=utf-8" })
       const url = URL.createObjectURL(blob)
       const link = document.createElement("a")
@@ -640,7 +822,7 @@ export default function TextViewer() {
         const newProject = { ...newState[projectName] }
 
         // Remove the file
-        const { [fileName]: _, ...remainingFiles } = newProject.files
+        const { [fileName]: _, ...remainingFiles } = newProject.files || {}
         newProject.files = remainingFiles
 
         newState[projectName] = newProject
@@ -775,7 +957,7 @@ export default function TextViewer() {
             // Add occurrences to the file
             const newFile = {
               ...newProject.files[activeFile],
-              occurrences: [...newProject.files[activeFile].occurrences, ...occurrences],
+              occurrences: [...(newProject.files[activeFile].occurrences || []), ...occurrences],
             }
 
             newProject.files = { ...newProject.files, [activeFile]: newFile }
@@ -803,9 +985,8 @@ export default function TextViewer() {
       name: string
       color: string
     }> = []
-
-    currentFile.occurrences.forEach((occurrence) => {
-      const mark = currentProject.marks[occurrence.id]
+    ;(currentFile.occurrences || []).forEach((occurrence) => {
+      const mark = currentProject.marks?.[occurrence.id]
 
       // Skip if mark doesn't exist (could be temporary search)
       if (!mark && !occurrence.id.startsWith("temp-")) return
@@ -933,8 +1114,8 @@ export default function TextViewer() {
     > = {}
 
     // Find all tag occurrences in the current file
-    currentFile.occurrences.forEach((occurrence) => {
-      const mark = currentProject.marks[occurrence.id]
+    ;(currentFile.occurrences || []).forEach((occurrence) => {
+      const mark = currentProject.marks?.[occurrence.id]
       if (!mark || mark.type !== "Tag") return
 
       if (!tagsByName[mark.name]) {
@@ -989,8 +1170,8 @@ export default function TextViewer() {
     > = {}
 
     // Find all search occurrences in the current file
-    currentFile.occurrences.forEach((occurrence) => {
-      const mark = currentProject.marks[occurrence.id]
+    ;(currentFile.occurrences || []).forEach((occurrence) => {
+      const mark = currentProject.marks?.[occurrence.id]
 
       // Handle both saved searches and temporary searches
       if ((mark && mark.type === "Search") || occurrence.id.startsWith("temp-")) {
@@ -1030,288 +1211,366 @@ export default function TextViewer() {
     // Search is handled by the useEffect
   }, [])
 
-  // Prepare tabulation data
-  const prepareTabulationData = useMemo(() => {
-    if (!showTabulationView) return null
+  // Project management functions
+  const createNewProject = useCallback(
+    (name: string) => {
+      if (!name.trim() || state[name]) return
 
-    // Get all mark names for tabulation options
-    const markOptions = Object.values(currentProject.marks).map((mark) => mark.name)
+      setState((prevState) => {
+        const newState = { ...prevState }
+        newState[name] = {
+          files: {
+            "sample.txt": {
+              content: "This is a sample text for your new project.",
+              occurrences: [],
+            },
+          },
+          marks: {},
+          groups: {},
+        }
+        return newState
+      })
 
-    // Prepare data for TabulationView
-    return {
-      markOptions,
-      files: Object.keys(currentProject.files),
-      activeFile,
-      getOccurrences: (markName: string, fileName: string) => {
-        // Find all occurrences of this mark in the file
-        const file = currentProject.files[fileName]
-        if (!file) return []
+      setProjectName(name)
+      setActiveFile("sample.txt")
+    },
+    [state],
+  )
 
-        // Find mark IDs that match this name
-        const markIds = Object.entries(currentProject.marks)
-          .filter(([_, mark]) => mark.name === markName)
-          .map(([id]) => id)
+  const switchProject = useCallback(
+    (name: string) => {
+      if (state[name]) {
+        setProjectName(name)
 
-        // Get occurrences
-        return file.occurrences
-          .filter((occ) => markIds.includes(occ.id))
-          .map((occ) => ({
-            text: occ.text,
-            start: occ.start,
-            end: occ.end,
-            file: fileName,
-          }))
-      },
-    }
-  }, [showTabulationView, currentProject.marks, currentProject.files, activeFile])
+        // Set active file to the first file in the project
+        const firstFileName = Object.keys(state[name].files || {})[0] || ""
+        setActiveFile(firstFileName)
 
-  const handleProjectNameChange = useCallback(() => {
-    if (editedProjectName === projectName) return
+        // Reset filters and search
+        setSelectedTagFilter("all")
+        setSearchTerm("")
+      }
+    },
+    [state],
+  )
 
+  // Group management functions
+  const createGroup = useCallback(
+    (name: string) => {
+      if (!name.trim()) return
+
+      const groupId = `group-${name.replace(/\s+/g, "-").toLowerCase()}-${Date.now()}`
+
+      setState((prevState) => {
+        const newState = { ...prevState }
+        const newProject = { ...newState[projectName] }
+
+        newProject.groups = {
+          ...newProject.groups,
+          [groupId]: {
+            name,
+            marks: [],
+            color: generatePastelColor(),
+          },
+        }
+
+        newState[projectName] = newProject
+        return newState
+      })
+
+      return groupId
+    },
+    [projectName],
+  )
+
+  const addMarkToGroup = useCallback(
+    (groupId: string, markId: string) => {
+      setState((prevState) => {
+        const newState = { ...prevState }
+        const newProject = { ...newState[projectName] }
+
+        if (newProject.groups?.[groupId] && newProject.marks?.[markId]) {
+          // Only add if not already in the group
+          if (!(newProject.groups[groupId].marks || []).includes(markId)) {
+            newProject.groups[groupId] = {
+              ...newProject.groups[groupId],
+              marks: [...(newProject.groups[groupId].marks || []), markId],
+            }
+          }
+        }
+
+        newState[projectName] = newProject
+        return newState
+      })
+    },
+    [projectName],
+  )
+
+  const removeMarkFromGroup = useCallback(
+    (groupId: string, markId: string) => {
+      setState((prevState) => {
+        const newState = { ...prevState }
+        const newProject = { ...newState[projectName] }
+
+        if (newProject.groups?.[groupId]) {
+          newProject.groups[groupId] = {
+            ...newProject.groups[groupId],
+            marks: (newProject.groups[groupId].marks || []).filter((id) => id !== markId),
+          }
+        }
+
+        newState[projectName] = newProject
+        return newState
+      })
+    },
+    [projectName],
+  )
+
+  const deleteGroup = useCallback(
+    (groupId: string) => {
+      setState((prevState) => {
+        const newState = { ...prevState }
+        const newProject = { ...newState[projectName] }
+
+        if (newProject.groups) {
+          const { [groupId]: _, ...remainingGroups } = newProject.groups
+          newProject.groups = remainingGroups
+        }
+
+        newState[projectName] = newProject
+        return newState
+      })
+    },
+    [projectName],
+  )
+
+  const updateGroupMarks = useCallback(
+    (groupId: string, markIds: string[]) => {
+      setState((prevState) => {
+        const newState = { ...prevState }
+        const newProject = { ...newState[projectName] }
+
+        if (newProject.groups?.[groupId]) {
+          newProject.groups[groupId] = {
+            ...newProject.groups[groupId],
+            marks: markIds,
+          }
+        }
+
+        newState[projectName] = newProject
+        return newState
+      })
+    },
+    [projectName],
+  )
+
+  const getMarksByGroup = useCallback(
+    (groupId: string) => {
+      const group = currentProject.groups?.[groupId]
+      if (!group) return []
+
+      return (group.marks || [])
+        .map((markId) => {
+          const mark = currentProject.marks?.[markId]
+          if (!mark) return null
+
+          return {
+            id: markId,
+            name: mark.name,
+            type: mark.type,
+            color: mark.color,
+          }
+        })
+        .filter(Boolean) as Array<{ id: string; name: string; type: "Tag" | "Search"; color: string }>
+    },
+    [currentProject.groups, currentProject.marks],
+  )
+
+  // Function to get all marks (tags, searches, groups) for tabulation
+  const getAllMarksForTabulation = useCallback(() => {
+    const allMarks: Array<{ id: string; name: string; prefix: string; color: string }> = []
+
+    // Add tags
+    Object.entries(currentProject.marks || {}).forEach(([id, mark]) => {
+      if (mark.type === "Tag") {
+        allMarks.push({
+          id,
+          name: mark.name,
+          prefix: "Tag",
+          color: mark.color,
+        })
+      }
+    })
+
+    // Add searches
+    Object.entries(currentProject.marks || {}).forEach(([id, mark]) => {
+      if (mark.type === "Search") {
+        allMarks.push({
+          id,
+          name: mark.name,
+          prefix: "Search",
+          color: mark.color,
+        })
+      }
+    })
+
+    // Add groups
+    Object.entries(currentProject.groups || {}).forEach(([id, group]) => {
+      allMarks.push({
+        id,
+        name: group.name,
+        prefix: "Group",
+        color: group.color || generatePastelColor(),
+      })
+    })
+
+    return allMarks
+  }, [currentProject.marks, currentProject.groups])
+
+  // Function to refresh all searches across all files
+  const refreshAllSearches = useCallback(() => {
+    setIsRefreshingSearch(true)
+
+    // Get all search marks
+    const searchMarks = Object.entries(currentProject.marks || {})
+      .filter(([_, mark]) => mark.type === "Search")
+      .map(([id, mark]) => ({ id, name: mark.name }))
+
+    // Process each file
     setState((prevState) => {
       const newState = { ...prevState }
+      const newProject = { ...newState[projectName] }
 
-      // Rename the project
-      newState[editedProjectName] = newState[projectName]
-      delete newState[projectName]
+      // For each file
+      Object.keys(newProject.files || {}).forEach((fileName) => {
+        const file = newProject.files[fileName]
+        const content = file.content
 
+        // Remove all search occurrences
+        const occurrences = (file.occurrences || []).filter((occ) => {
+          const mark = newProject.marks?.[occ.id]
+          return !mark || mark.type !== "Search"
+        })
+
+        // Re-add all search occurrences
+        searchMarks.forEach(({ id, name }) => {
+          let index = content.toLowerCase().indexOf(name.toLowerCase())
+          let counter = 0
+
+          while (index !== -1 && counter < 1000) {
+            occurrences.push({
+              id,
+              text: content.slice(index, index + name.length),
+              start: index,
+              end: index + name.length,
+            })
+
+            index = content.toLowerCase().indexOf(name.toLowerCase(), index + 1)
+            counter++
+          }
+        })
+
+        // Update file
+        newProject.files[fileName] = {
+          ...file,
+          occurrences,
+        }
+      })
+
+      newState[projectName] = newProject
       return newState
     })
 
-    setProjectName(editedProjectName)
-    setIsProjectNameDialogOpen(false)
-  }, [editedProjectName, projectName])
+    // Set timeout to simulate processing time
+    setTimeout(() => {
+      setIsRefreshingSearch(false)
+    }, 1000)
+  }, [currentProject.marks, projectName])
 
-  return (
-    <div className="container mx-auto py-6 h-screen flex flex-col">
-      <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-bold">{projectName}</h1>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => {
-              setEditedProjectName(projectName)
-              setIsProjectNameDialogOpen(true)
-            }}
-          >
-            <Edit className="h-4 w-4" />
-          </Button>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button onClick={handleDownloadState}>
-            <Download className="h-4 w-4 mr-2" />
-            Download Project
-          </Button>
-          <Button onClick={() => fileInputRef.current?.click()}>
-            <Upload className="h-4 w-4 mr-2" />
-            Upload Project
-          </Button>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleUploadState}
-            style={{ display: "none" }}
-            accept=".json"
-          />
-          <UserDropdown />
-        </div>
-      </div>
-      <div className="flex flex-grow overflow-hidden">
-        <FileList
-          files={Object.keys(currentProject.files)}
-          activeFile={activeFile}
-          onSelectFile={handleSelectFile}
-          onAddFile={handleAddFile}
-          onUploadFile={handleUploadFile}
-          onSaveFile={handleSaveFile}
-          onRemoveFile={handleRemoveFile}
-        />
-        <div className="flex-grow grid gap-6 md:grid-cols-2 h-full overflow-hidden">
-          <div className="flex flex-col">
-            <div className="mb-4 flex gap-2">
-              <Select value={selectedTagFilter} onValueChange={handleTagFilterChange}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Filter tags..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Tags</SelectItem>
-                  {uniqueTagLabels.map((label) => (
-                    <SelectItem key={label} value={label} className="flex items-center gap-2">
-                      <div
-                        className={`w-3 h-3 rounded inline-block mr-2`}
-                        style={{
-                          backgroundColor: Object.values(currentProject.marks).find(
-                            (mark) => mark.type === "Tag" && mark.name === label,
-                          )?.color,
-                        }}
-                      />
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <form onSubmit={handleSearch} className="flex-1 flex gap-2">
-                <div className="relative flex-1">
-                  <Input
-                    type="text"
-                    placeholder="Search..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pr-8"
-                  />
-                  {searchTerm && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-0 top-0 h-full"
-                      onClick={() => setSearchTerm("")}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-                <Button type="submit">
-                  <Search className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  onClick={saveSearch}
-                  disabled={
-                    !searchTerm ||
-                    searchResults.length === 0 ||
-                    savedSearches.some((s) => s.name.toLowerCase() === searchTerm.toLowerCase())
-                  }
-                >
-                  <Save className="h-4 w-4" />
-                </Button>
-                <Button type="button" onClick={fetchSynonyms} disabled={!searchTerm} title="Find synonyms">
-                  <BookOpen className="h-4 w-4" />
-                </Button>
-              </form>
-            </div>
-            <div
-              ref={contentRef}
-              className="text-lg p-4 border rounded relative whitespace-pre-wrap h-full overflow-auto"
-              contentEditable
-              suppressContentEditableWarning
-              onInput={(e) => handleContentChange(e.currentTarget.textContent || "")}
-              onContextMenu={handleContextMenu}
-            >
-              {currentFile?.content ? renderContent() : null}
-            </div>
-          </div>
-          <div className="space-y-6 overflow-auto">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Tag Analysis</h2>
-              <Button onClick={() => setShowTabulationView(true)}>
-                <Table className="h-4 w-4 mr-2" />
-                Tabulate
-              </Button>
-            </div>
-            <TagAnalysis
-              tags={prepareTagsForAnalysis()}
-              onTagClick={handleTagClick}
-              onOccurrenceClick={handleSpecificSearchClick}
-              highlightedTag={selectedTagFilter}
-              activeFile={activeFile}
-            />
-            <SearchAnalysis
-              content={currentFile?.content || ""}
-              currentSearchResults={searchResults.map((r) => ({ text: r.text, start: r.start, stop: r.end }))}
-              savedSearches={prepareSearchesForAnalysis()}
-              onSelectSearch={handleSearchClick}
-              onSelectSpecificSearch={handleSpecificSearchClick}
-              onRemoveSearch={(searchName) => {
-                const searchId = Object.entries(currentProject.marks).find(
-                  ([_, mark]) => mark.type === "Search" && mark.name === searchName,
-                )?.[0]
-                if (searchId) handleRemoveSearch(searchId)
-              }}
-              highlightedSearch={searchTerm}
-              activeFile={activeFile}
-            />
-          </div>
-        </div>
-      </div>
-      {showTabulationView && prepareTabulationData && (
-        <TabulationView
-          data={prepareTabulationData}
-          onClose={() => setShowTabulationView(false)}
-          onSelectOccurrence={handleTabulationOccurrenceSelect}
-        />
-      )}
-      <DropdownMenu open={!!contextMenuPosition} onOpenChange={() => setContextMenuPosition(null)}>
-        <DropdownMenuTrigger asChild>
-          <div
-            style={{
-              position: "fixed",
-              left: contextMenuPosition?.x ?? 0,
-              top: contextMenuPosition?.y ?? 0,
-            }}
-            onContextMenu={handleContextMenu}
-          />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent>
-          {uniqueTagLabels.map((label) => (
-            <DropdownMenuItem key={label} onSelect={() => addTag(label)} className="flex items-center gap-2">
-              <div
-                className={`w-3 h-3 rounded`}
-                style={{
-                  backgroundColor: Object.values(currentProject.marks).find(
-                    (mark) => mark.type === "Tag" && mark.name === label,
-                  )?.color,
-                }}
-              />
-              {label}
-            </DropdownMenuItem>
-          ))}
-          {uniqueTagLabels.length > 0 && <DropdownMenuSeparator />}
-          <DropdownMenuItem onSelect={handleNewTag}>New Tag...</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <Dialog open={isNewTagDialogOpen} onOpenChange={setIsNewTagDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create New Tag</DialogTitle>
-          </DialogHeader>
-          <div className="flex items-center space-x-2">
-            <Input
-              type="text"
-              placeholder="Enter new tag label"
-              value={newTagLabel}
-              onChange={(e) => setNewTagLabel(e.target.value)}
-            />
-            <Button onClick={submitNewTag}>Add</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={isProjectNameDialogOpen} onOpenChange={setIsProjectNameDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Project Name</DialogTitle>
-          </DialogHeader>
-          <div className="flex items-center space-x-2">
-            <Input
-              type="text"
-              placeholder="Enter project name"
-              value={editedProjectName}
-              onChange={(e) => setEditedProjectName(e.target.value)}
-            />
-            <Button onClick={handleProjectNameChange}>Save</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-      {showSynonymsPopup && (
-        <SynonymsPopup
-          word={searchTerm}
-          synonyms={synonyms}
-          isLoading={isFetchingSynonyms}
-          onClose={() => setShowSynonymsPopup(false)}
-          onSave={handleSaveSynonyms}
-        />
-      )}
-    </div>
-  )
+  const value = {
+    state,
+    projectName,
+    setProjectName,
+    projectNames,
+    currentProject,
+    activeFile,
+    setActiveFile,
+    currentFile,
+    selectedTagFilter,
+    setSelectedTagFilter,
+    searchTerm,
+    setSearchTerm: handleSearchTermChange,
+    showTabulationView,
+    setShowTabulationView,
+    showSynonymsPopup,
+    setShowSynonymsPopup,
+    synonyms,
+    setSynonyms,
+    isFetchingSynonyms,
+    setIsFetchingSynonyms,
+    isNewTagDialogOpen,
+    setIsNewTagDialogOpen,
+    isNewGroupDialogOpen,
+    setIsNewGroupDialogOpen,
+    isEditGroupDialogOpen,
+    setIsEditGroupDialogOpen,
+    isRefreshingSearch,
+    setIsRefreshingSearch,
+    newTagLabel,
+    setNewTagLabel,
+    newGroupName,
+    setNewGroupName,
+    selectedGroupForEdit,
+    setSelectedGroupForEdit,
+    contentRef,
+    fileInputRef,
+    selection,
+    setSelection,
+    contextMenuPosition,
+    setContextMenuPosition,
+    searchResults,
+    uniqueTagLabels,
+    savedSearches,
+    groups,
+
+    // Functions
+    handleSelectFile,
+    handleAddFile,
+    handleUploadFile,
+    handleSaveFile,
+    handleRemoveFile,
+    handleTagClick,
+    handleSearchClick,
+    handleSpecificSearchClick,
+    handleTagFilterChange,
+    handleContentChange,
+    handleContextMenu,
+    addTag,
+    handleNewTag,
+    submitNewTag,
+    saveSearch,
+    fetchSynonyms,
+    handleSaveSynonyms,
+    handleDownloadState,
+    handleUploadState,
+    handleRemoveSearch,
+    handleRemoveTag,
+    handleRemoveOccurrence,
+    renderContent,
+    prepareTagsForAnalysis,
+    prepareSearchesForAnalysis,
+    handleSearch,
+    createNewProject,
+    switchProject,
+    createGroup,
+    addMarkToGroup,
+    removeMarkFromGroup,
+    deleteGroup,
+    updateGroupMarks,
+    refreshAllSearches,
+    getMarksByGroup,
+    getAllMarksForTabulation,
+  }
+
+  return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>
 }

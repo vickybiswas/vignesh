@@ -1,15 +1,13 @@
 "use client"
 
-import { useContext } from "react"
-import { ProjectContext } from "@/contexts/project-context"
+import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Loader2 } from "lucide-react"
-import { useState } from "react"
 
-interface SynonymsPopupProps {
+interface SynonymsPopupContentProps {
   word: string
   synonyms: string[]
   isLoading: boolean
@@ -17,7 +15,7 @@ interface SynonymsPopupProps {
   onSave: (selectedSynonyms: string[]) => void
 }
 
-export function SynonymsPopupContent({ word, synonyms, isLoading, onClose, onSave }: SynonymsPopupProps) {
+export function SynonymsPopupContent({ word, synonyms, isLoading, onClose, onSave }: SynonymsPopupContentProps) {
   const [selectedSynonyms, setSelectedSynonyms] = useState<string[]>([])
 
   const handleCheckboxChange = (synonym: string) => {
@@ -94,22 +92,5 @@ export function SynonymsPopupContent({ word, synonyms, isLoading, onClose, onSav
         )}
       </DialogContent>
     </Dialog>
-  )
-}
-
-export function SynonymsPopup() {
-  const { showSynonymsPopup, setShowSynonymsPopup, searchTerm, synonyms, isFetchingSynonyms, handleSaveSynonyms } =
-    useContext(ProjectContext)
-
-  if (!showSynonymsPopup) return null
-
-  return (
-    <SynonymsPopupContent
-      word={searchTerm}
-      synonyms={synonyms}
-      isLoading={isFetchingSynonyms}
-      onClose={() => setShowSynonymsPopup(false)}
-      onSave={handleSaveSynonyms}
-    />
   )
 }
