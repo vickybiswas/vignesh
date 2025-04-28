@@ -310,7 +310,7 @@ export function TabulationView({ state, onClose, onSelectOccurrence, setState, a
                 Occurrences for {selectedCell.row} ∩ {selectedCell.col}
               </DialogTitle>
             </DialogHeader>
-            <ScrollArea className="h-[300px]">
+            <ScrollArea className="h-full">
               {tabulationData[selectedCell.row][selectedCell.col].occurrences.map((occurrence, index) => (
                 <div key={index} className="mb-4">
                   <TextOccurrence

@@ -52,7 +52,7 @@ export function SearchAnalysis({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[300px] pr-4">
+        <ScrollArea className="h-full pr-4">
           <div className="space-y-4">
             <Collapsible>
               <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-lg border bg-card p-4 text-left hover:bg-accent">

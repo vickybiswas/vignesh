@@ -981,8 +981,8 @@ export default function TextViewer() {
             >
               <ResizablePanel defaultSize={100}>
                 <ResizablePanelGroup direction="vertical">
-                  <ResizablePanel defaultSize={50}>
-                    <div className="flex h-full items-center justify-center p-6">
+                  <ResizablePanel defaultSize={50} className="p-5">
+                    <div className="h-full overflow-y-auto">
                       <TagAnalysis
                         tags={convertedTags}
                         onTagClick={handleTagClick}
@@ -993,17 +993,17 @@ export default function TextViewer() {
                   </ResizablePanel>
                   <ResizableHandle />
                   <ResizablePanel defaultSize={50}>
-                    <div className="flex h-full items-center justify-center p-6">
-                      <SearchAnalysis
-                        content={activeFile.content}
-                        currentSearchResults={prepareSearchResults(searchTerm)}
-                        savedSearches={savedSearches}
-                        onSelectSearch={handleSearchClick}
-                        onSelectSpecificSearch={handleSpecificSearchClick}
-                        onRemoveSearch={handleRemoveSearch}
-                        highlightedSearch={searchTerm}
-                      />
-                    </div>
+                       <div className="h-full overflow-y-auto">
+                        <SearchAnalysis
+                            content={activeFile.content}
+                            currentSearchResults={prepareSearchResults(searchTerm)}
+                            savedSearches={savedSearches}
+                            onSelectSearch={handleSearchClick}
+                            onSelectSpecificSearch={handleSpecificSearchClick}
+                            onRemoveSearch={handleRemoveSearch}
+                            highlightedSearch={searchTerm}
+                        />
+                      </div>
                   </ResizablePanel>
                 </ResizablePanelGroup>
               </ResizablePanel>

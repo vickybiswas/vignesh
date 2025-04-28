@@ -23,7 +23,7 @@ export function TagAnalysis({ tags, onTagClick, onOccurrenceClick, highlightedTa
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[300px] pr-4">
+        <ScrollArea className="h-full pr-4 overflow-y-auto">
           <div className="space-y-4">
             {tags?.map((tag) => (
               <Collapsible key={tag.id}>
