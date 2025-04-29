@@ -1228,6 +1228,20 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
       })
     })
 
+    // Ensure all tags exist, even with zero occurrences in this file
+    Object.entries(currentProject.marks || {}).forEach(([markId, mark]) => {
+      if (mark.type !== "Tag") return
+      const name = mark.name
+      if (!tagsByName[name]) {
+        tagsByName[name] = {
+          id: markId,
+          color: mark.color,
+          positions: { [activeFile]: [] },
+        }
+      } else if (!tagsByName[name].positions[activeFile]) {
+        tagsByName[name].positions[activeFile] = []
+      }
+    })
     // Convert to array format
     Object.entries(tagsByName).forEach(([name, data]) => {
       tagData.push({
