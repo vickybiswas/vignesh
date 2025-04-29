@@ -38,8 +38,8 @@ export function SearchAnalysisPanel({
 }: SearchAnalysisPanelProps) {
   const { refreshAllSearches, isRefreshingSearch, setIsRefreshingSearch } = useContext(ProjectContext)
 
+  // Trigger context refresh to re-run all saved searches
   const handleRefreshAllSearches = () => {
-    setIsRefreshingSearch(true)
     refreshAllSearches()
   }
 

@@ -136,10 +136,15 @@ interface TabulationViewProps {
 }
 
 export function TabulationViewContent({ data, onClose, onSelectOccurrence }: TabulationViewProps) {
-  // State for tabulation configuration
-  const [rowSelections, setRowSelections] = useState<string[]>([])
-  const [columnSelections, setColumnSelections] = useState<string[]>([])
-  const [expansionType, setExpansionType] = useState<ExpansionType>(0)
+  // Persistent tabulation configuration from context
+  const {
+    tabulationRowSelections: rowSelections,
+    setTabulationRowSelections: setRowSelections,
+    tabulationColumnSelections: columnSelections,
+    setTabulationColumnSelections: setColumnSelections,
+    tabulationExpansionType: expansionType,
+    setTabulationExpansionType: setExpansionType,
+  } = useContext(ProjectContext)
   const [selectedCell, setSelectedCell] = useState<{ row: string; col: string } | null>(null)
   const [highlightedOccurrence, setHighlightedOccurrence] = useState<{
     text: string
@@ -147,6 +152,7 @@ export function TabulationViewContent({ data, onClose, onSelectOccurrence }: Tab
     end: number
   } | null>(null)
 
+  const { currentProject } = useContext(ProjectContext)
   // Generate tabulation data based on selections
   const tabulationData = useMemo(() => {
     if (rowSelections.length === 0 || columnSelections.length === 0) return null
@@ -202,11 +208,33 @@ export function TabulationViewContent({ data, onClose, onSelectOccurrence }: Tab
                 // Direct text overlap
                 return Math.max(rowOcc.start, colOcc.start) < Math.min(rowOcc.end, colOcc.end)
               } else if (expansionType === 1) {
-                // Same sentence - simplified for demo
-                return Math.abs(colOcc.start - rowOcc.start) < 100
+                // Same sentence: between nearest periods
+                const content = currentProject.files[fileName]?.content || ""
+                const startPos = Math.min(rowOcc.start, colOcc.start)
+                const endPos = Math.max(rowOcc.end, colOcc.end)
+                // Find sentence boundaries
+                let sentStart = content.lastIndexOf('.', startPos)
+                sentStart = sentStart === -1 ? 0 : sentStart + 1
+                let sentEnd = content.indexOf('.', endPos)
+                sentEnd = sentEnd === -1 ? content.length : sentEnd
+                return (
+                  rowOcc.start >= sentStart && rowOcc.end <= sentEnd &&
+                  colOcc.start >= sentStart && colOcc.end <= sentEnd
+                )
               } else {
-                // Same paragraph - simplified for demo
-                return Math.abs(colOcc.start - rowOcc.start) < 500
+                // Same paragraph: between blank-line separators
+                const content = currentProject.files[fileName]?.content || ""
+                const startPos = Math.min(rowOcc.start, colOcc.start)
+                const endPos = Math.max(rowOcc.end, colOcc.end)
+                // Find paragraph boundaries
+                let paraStart = content.lastIndexOf('\n\n', startPos)
+                paraStart = paraStart === -1 ? 0 : paraStart + 2
+                let paraEnd = content.indexOf('\n\n', endPos)
+                paraEnd = paraEnd === -1 ? content.length : paraEnd
+                return (
+                  rowOcc.start >= paraStart && rowOcc.end <= paraEnd &&
+                  colOcc.start >= paraStart && colOcc.end <= paraEnd
+                )
               }
             }),
           )

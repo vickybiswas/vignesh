@@ -58,6 +58,13 @@ interface ProjectContextType {
   setSearchTerm: (term: string) => void
   showTabulationView: boolean
   setShowTabulationView: (show: boolean) => void
+  // Tabulation view persistent configuration
+  tabulationRowSelections: string[]
+  setTabulationRowSelections: (rows: string[]) => void
+  tabulationColumnSelections: string[]
+  setTabulationColumnSelections: (cols: string[]) => void
+  tabulationExpansionType: number
+  setTabulationExpansionType: (type: number) => void
   showSynonymsPopup: boolean
   setShowSynonymsPopup: (show: boolean) => void
   synonyms: string[]
@@ -278,6 +285,10 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
   const [selectedTagFilter, setSelectedTagFilter] = useState<string>("all")
   const [searchTerm, setSearchTerm] = useState<string>("")
   const [showTabulationView, setShowTabulationView] = useState<boolean>(false)
+  // Tabulation view persistent configuration
+  const [tabulationRowSelections, setTabulationRowSelections] = useState<string[]>([])
+  const [tabulationColumnSelections, setTabulationColumnSelections] = useState<string[]>([])
+  const [tabulationExpansionType, setTabulationExpansionType] = useState<number>(0)
   const [showSynonymsPopup, setShowSynonymsPopup] = useState<boolean>(false)
   const [synonyms, setSynonyms] = useState<string[]>([])
   const [isFetchingSynonyms, setIsFetchingSynonyms] = useState<boolean>(false)
@@ -1259,59 +1270,42 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
   const prepareSearchesForAnalysis = useCallback(() => {
     if (!activeFile) return []
 
-    const searches: Array<{
-      id: string
-      text: string
-      color: string
-      occurrences: Array<{ text: string; start: number; stop: number }>
-    }> = []
-
-    // Group by search name
+    // Build a map for all saved searches (marks of type Search)
     const searchesByName: Record<
       string,
-      {
-        id: string
-        color: string
-        occurrences: Array<{ text: string; start: number; stop: number }>
-      }
+      { id: string; color: string; occurrences: Array<{ text: string; start: number; stop: number }> }
     > = {}
-
-    // Find all search occurrences in the current file
-    ;(currentFile.occurrences || []).forEach((occurrence) => {
-      const mark = currentProject.marks?.[occurrence.id]
-
-      // Handle both saved searches and temporary searches
-      if ((mark && mark.type === "Search") || occurrence.id.startsWith("temp-")) {
-        const searchName = mark?.name || searchTerm
-
-        if (!searchesByName[searchName]) {
-          searchesByName[searchName] = {
-            id: occurrence.id,
-            color: mark?.color || "hsl(200, 100%, 80%)",
-            occurrences: [],
-          }
-        }
-
-        searchesByName[searchName].occurrences.push({
-          text: occurrence.text,
-          start: occurrence.start,
-          stop: occurrence.end,
-        })
+    Object.entries(currentProject.marks || {}).forEach(([id, mark]) => {
+      if (mark.type === "Search") {
+        // Initialize with zero occurrences
+        searchesByName[mark.name] = { id, color: mark.color, occurrences: [] }
       }
     })
 
-    // Convert to array format
-    Object.entries(searchesByName).forEach(([name, data]) => {
-      searches.push({
-        id: data.id,
-        text: name,
-        color: data.color,
-        occurrences: data.occurrences,
+    // Populate occurrences from the current file
+    ;(currentFile.occurrences || []).forEach((occurrence) => {
+      const mark = currentProject.marks?.[occurrence.id]
+      if (!mark || mark.type !== "Search") return
+      const name = mark.name
+      // Ensure entry exists (should always)
+      if (!searchesByName[name]) {
+        searchesByName[name] = { id: occurrence.id, color: mark.color, occurrences: [] }
+      }
+      searchesByName[name].occurrences.push({
+        text: occurrence.text,
+        start: occurrence.start,
+        stop: occurrence.end,
       })
     })
 
-    return searches
-  }, [activeFile, currentFile.occurrences, currentProject.marks, searchTerm])
+    // Convert to array format
+    return Object.entries(searchesByName).map(([text, data]) => ({
+      id: data.id,
+      text,
+      color: data.color,
+      occurrences: data.occurrences,
+    }))
+  }, [activeFile, currentFile.occurrences, currentProject.marks])
 
   const handleSearch = useCallback(
     (event: React.FormEvent) => {
@@ -1578,65 +1572,52 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
     return allMarks
   }, [currentProject.marks, currentProject.groups])
 
-  // Function to refresh all searches across all files
+  // Function to refresh all saved searches across all files
   const refreshAllSearches = useCallback(() => {
+    // Show loader dialog
     setIsRefreshingSearch(true)
-
-    // Get all search marks
-    const searchMarks = Object.entries(currentProject.marks || {})
-      .filter(([_, mark]) => mark.type === "Search")
-      .map(([id, mark]) => ({ id, name: mark.name }))
-
-    // Process each file
-    setState((prevState) => {
-      const newState = { ...prevState }
-      const newProject = { ...newState[projectName] }
-
-      // For each file
-      Object.keys(newProject.files || {}).forEach((fileName) => {
-        const file = newProject.files[fileName]
-        const content = file.content
-
-        // Remove all search occurrences
-        const occurrences = (file.occurrences || []).filter((occ) => {
-          const mark = newProject.marks?.[occ.id]
-          return !mark || mark.type !== "Search"
-        })
-
-        // Re-add all search occurrences
-        searchMarks.forEach(({ id, name }) => {
-          let index = content.toLowerCase().indexOf(name.toLowerCase())
-          let counter = 0
-
-          while (index !== -1 && counter < 1000) {
-            occurrences.push({
-              id,
-              text: content.slice(index, index + name.length),
-              start: index,
-              end: index + name.length,
-            })
-
-            index = content.toLowerCase().indexOf(name.toLowerCase(), index + 1)
-            counter++
-          }
-        })
-
-        // Update file
-        newProject.files[fileName] = {
-          ...file,
-          occurrences,
-        }
-      })
-
-      newState[projectName] = newProject
-      return newState
-    })
-
-    // Set timeout to simulate processing time
+    // Delay actual search refresh slightly to allow spinner/modal to render
     setTimeout(() => {
+      setState((prevState) => {
+        const newState = { ...prevState }
+        const newProject = { ...newState[projectName] }
+        const marks = newProject.marks || {}
+        // Identify saved searches (marks of type Search)
+        const searchMarks = Object.entries(marks).filter(([, mark]) => mark.type === "Search")
+        // Update each file
+        Object.entries(newProject.files || {}).forEach(([fileName, file]) => {
+          const content = file.content || ""
+          // Keep only non-search occurrences
+          const baseOcc = (file.occurrences || []).filter((occ) => {
+            const m = marks[occ.id]
+            return !m || m.type !== "Search"
+          })
+          const newOccurrences = [...baseOcc]
+          // Re-run each saved search term
+          searchMarks.forEach(([id, mark]) => {
+            const term = mark.name
+            let idx = content.toLowerCase().indexOf(term.toLowerCase())
+            let count = 0
+            while (idx !== -1 && count < 1000) {
+              newOccurrences.push({
+                id,
+                text: content.slice(idx, idx + term.length),
+                start: idx,
+                end: idx + term.length,
+              })
+              idx = content.toLowerCase().indexOf(term.toLowerCase(), idx + 1)
+              count++
+            }
+          })
+          newProject.files[fileName] = { ...file, occurrences: newOccurrences }
+        })
+        newState[projectName] = newProject
+        return newState
+      })
+      // Hide loader
       setIsRefreshingSearch(false)
-    }, 1000)
-  }, [currentProject.marks, projectName])
+    }, 200)
+  }, [projectName])
 
   const value = {
     state,
@@ -1653,6 +1634,13 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
     setSearchTerm: handleSearchTermChange,
     showTabulationView,
     setShowTabulationView,
+    // Tabulation view persistent configuration
+    tabulationRowSelections,
+    setTabulationRowSelections,
+    tabulationColumnSelections,
+    setTabulationColumnSelections,
+    tabulationExpansionType,
+    setTabulationExpansionType,
     showSynonymsPopup,
     setShowSynonymsPopup,
     synonyms,
