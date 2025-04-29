@@ -1,4 +1,6 @@
 // For demo purposes, this API route will always return a successful response with fallback synonyms
+"use client"
+
 export async function POST(req: Request) {
   try {
     const { word } = await req.json()
