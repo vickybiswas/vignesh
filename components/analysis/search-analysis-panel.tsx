@@ -45,7 +45,7 @@ export function SearchAnalysisPanel({
 
   return (
     <>
-      <Card className="w-full">
+      <Card className="w-full h-full flex flex-col">
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -65,8 +65,8 @@ export function SearchAnalysisPanel({
             )}
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <ScrollArea className="h-[300px] pr-4">
+        <CardContent className="flex-1 overflow-hidden">
+          <ScrollArea className="h-full pr-4">
             <div className="space-y-4">
               <Collapsible>
                 <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-lg border bg-card p-4 text-left hover:bg-accent">

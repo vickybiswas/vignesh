@@ -32,15 +32,15 @@ export function TagAnalysisPanel({
   activeFile,
 }: TagAnalysisPanelProps) {
   return (
-    <Card className="w-full">
+    <Card className="w-full h-full flex flex-col">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Hash className="h-5 w-5" />
           Tag Analysis
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <ScrollArea className="h-[300px] pr-4">
+      <CardContent className="flex-1 overflow-hidden">
+        <ScrollArea className="h-full pr-4">
           <div className="space-y-4">
             {tags.map((tag) => {
               // Count occurrences for this tag in the active file
