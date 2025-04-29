@@ -128,6 +128,8 @@ interface ProjectContextType {
   handleSearch: (event: React.FormEvent) => void
   createNewProject: (name: string) => void
   switchProject: (name: string) => void
+  deleteProject: (name: string) => void
+  updateProjectName: (oldName: string, newName: string) => void
   createGroup: (name: string) => void
   addMarkToGroup: (groupId: string, markId: string) => void
   removeMarkFromGroup: (groupId: string, markId: string) => void
@@ -1345,8 +1347,48 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
         setSelectedTagFilter("all")
         setSearchTerm("")
       }
+  },
+  [state],
+  )
+  // Rename an existing project
+  const updateProjectName = useCallback(
+    (oldName: string, newName: string) => {
+      if (!oldName.trim() || !newName.trim() || oldName === newName || state[newName]) return
+      const newState = { ...state }
+      const projectData = newState[oldName]
+      if (!projectData) return
+      delete newState[oldName]
+      newState[newName] = projectData
+      setState(newState)
+      if (projectName === oldName) {
+        setProjectName(newName)
+      }
     },
-    [state],
+    [state, projectName],
+  )
+
+  // Delete an existing project
+  const deleteProject = useCallback(
+    (name: string) => {
+      if (!state[name]) return
+      const newState = { ...state }
+      delete newState[name]
+      setState(newState)
+
+      if (projectName === name) {
+        const names = Object.keys(newState)
+        const next = names[0] || ''
+        setProjectName(next)
+        if (next) {
+          const files = newState[next].files
+          const firstFile = files && Object.keys(files)[0] ? Object.keys(files)[0] : ''
+          setActiveFile(firstFile)
+        } else {
+          setActiveFile('')
+        }
+      }
+    },
+    [state, projectName],
   )
 
   // Group management functions
@@ -1657,6 +1699,8 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
     handleSearch,
     createNewProject,
     switchProject,
+    updateProjectName,
+    deleteProject,
     createGroup,
     addMarkToGroup,
     removeMarkFromGroup,
