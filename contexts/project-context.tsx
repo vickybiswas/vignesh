@@ -1073,31 +1073,35 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
       setState((prevState) => {
         const newState = { ...prevState }
         const newProject = { ...newState[projectName] }
-        // For each synonym, create a search mark and scan all files
+        // For each synonym, reuse or create a search mark, then scan all files
         selectedSynonyms.forEach((synonym) => {
-          const norm = synonym.replace(/\s+/g, "-").toLowerCase()
-          const searchId = `search-${norm}-${Date.now()}`
-          // Add mark
-          newProject.marks = {
-            ...newProject.marks,
-            [searchId]: { color: generatePastelColor(), type: "Search", name: synonym },
+          const lower = synonym.toLowerCase()
+          const existing = Object.entries(newProject.marks || {}).find(
+            ([, m]) => m.type === "Search" && m.name.toLowerCase() === lower
+          )
+          const searchId = existing
+            ? existing[0]
+            : `search-${lower.replace(/\s+/g, "-")}-${Date.now()}`
+          if (!existing) {
+            newProject.marks = {
+              ...newProject.marks,
+              [searchId]: { color: generatePastelColor(), type: "Search", name: synonym },
+            }
           }
-          // Scan every file for occurrences
           Object.entries(newProject.files || {}).forEach(([fileName, file]) => {
             const text = file.content || ""
             const hits: Occurrence[] = []
-            let idx = text.toLowerCase().indexOf(synonym.toLowerCase())
+            const term = lower
+            let idx = text.toLowerCase().indexOf(term)
             let cnt = 0
             while (idx !== -1 && cnt < 10000) {
               hits.push({ id: searchId, text: text.slice(idx, idx + synonym.length), start: idx, end: idx + synonym.length })
-              idx = text.toLowerCase().indexOf(synonym.toLowerCase(), idx + 1)
+              idx = text.toLowerCase().indexOf(term, idx + 1)
               cnt++
             }
-            // Merge and dedupe occurrences for this file
-            const base = file.occurrences || []
             newProject.files[fileName] = {
               ...file,
-              occurrences: dedupeOccurrences([...base, ...hits]),
+              occurrences: dedupeOccurrences([...(file.occurrences || []), ...hits]),
             }
           })
         })
