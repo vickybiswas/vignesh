@@ -28,6 +28,7 @@ export function FileList({
   onRemoveFile,
 }: FileListProps) {
   const [newFileName, setNewFileName] = useState("")
+  const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleAddFile = () => {
@@ -44,12 +45,41 @@ export function FileList({
     }
   }
 
+  // Drag & drop handlers for uploading files
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  }, [])
+
+  const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragging(false)
+    const files = Array.from(e.dataTransfer.files)
+    files.forEach((file) => onUploadFile(file))
+  }, [onUploadFile])
+
   const handleContextMenu = useCallback((e: React.MouseEvent, fileName: string) => {
     e.preventDefault()
   }, [])
 
   return (
-    <div className="w-64 border-r p-4 h-full flex flex-col">
+    <div
+      className={`w-64 border-r p-4 h-full flex flex-col ${isDragging ? 'bg-blue-50' : ''}`}
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <h2 className="text-lg font-semibold mb-4">Files</h2>
       <ul className="space-y-2 flex-grow overflow-auto">
         {files.map((file) => (

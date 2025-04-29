@@ -56,7 +56,7 @@ export function MainLayout({ children }: MainLayoutProps) {
     <div className="flex flex-col h-screen max-w-full">
       <Header />
       <div className="flex flex-1 overflow-hidden">
-        <div style={{ width: leftWidth }} className="flex-shrink-0 overflow-auto">
+        <div style={{ width: leftWidth }} className="flex-shrink-0 overflow-auto min-h-0">
           <FilesSidebar />
         </div>
         <div

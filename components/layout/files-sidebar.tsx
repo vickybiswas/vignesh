@@ -2,13 +2,12 @@
 
 import type React from "react"
 
-import { useContext, useRef } from "react"
+import { useContext, useRef, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, Upload, Download, Trash } from "lucide-react"
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu"
 import { ProjectContext } from "@/contexts/project-context"
-import { useState } from "react"
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@radix-ui/react-hover-card"
 import WarningPopup from "../warning-popup"
 import { messages } from "@/utils/messages"
@@ -65,10 +64,38 @@ export function FilesSidebar() {
   }
 
   // Ensure currentProject.files exists before trying to use it
+  // Track drag state for drop target highlighting
+  const [isDragging, setIsDragging] = useState(false)
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  }, [])
+  const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }, [])
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }, [])
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragging(false)
+    Array.from(e.dataTransfer.files).forEach((file) => handleUploadFile(file))
+  }, [handleUploadFile])
+  
   const files = currentProject?.files || {}
 
   return (
-    <div className="border-r p-2 md:p-4 h-full flex flex-col overflow-auto">
+    <div
+      className={
+        `border-r p-2 md:p-4 h-full flex flex-col overflow-auto min-h-0 ${isDragging ? 'bg-blue-50 border-dashed border-blue-300' : ''}`
+      }
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
          <div className="flex justify-between items-center">
       <h2 className="text-lg font-semibold mb-4">Files</h2>
       <div>
@@ -81,7 +108,7 @@ export function FilesSidebar() {
         <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} accept=".txt,.md,.json" />
       </div>
       </div>
-      <ul className="space-y-2 flex-grow overflow-auto">
+      <ul className="space-y-2 flex-grow overflow-auto min-h-0">
         {Object.keys(files).map((file) => (
           <li key={file} className="flex items-center">
           <HoverCard openDelay={0} closeDelay={0}>
