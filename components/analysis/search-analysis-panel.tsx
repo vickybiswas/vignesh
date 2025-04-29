@@ -134,7 +134,10 @@ export function SearchAnalysisPanel({
                             start={occurrence.start}
                             stop={occurrence.stop}
                             isHighlighted={highlightedSearch === search.text}
-                            onClick={() => onSelectSpecificSearch(occurrence)}
+                            onClick={() => {
+                              onSelectSearch(search.text)
+                              onSelectSpecificSearch(occurrence)
+                            }}
                           />
                         ))}
                       </CollapsibleContent>

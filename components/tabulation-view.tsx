@@ -152,7 +152,12 @@ export function TabulationViewContent({ data, onClose, onSelectOccurrence }: Tab
     end: number
   } | null>(null)
 
-  const { currentProject } = useContext(ProjectContext)
+  const {
+    currentProject,
+    setActiveFile,
+    setSelectedTagFilter,
+    setSearchTerm,
+  } = useContext(ProjectContext)
   // Generate tabulation data based on selections
   const tabulationData = useMemo(() => {
     if (rowSelections.length === 0 || columnSelections.length === 0) return null
@@ -293,9 +298,21 @@ export function TabulationViewContent({ data, onClose, onSelectOccurrence }: Tab
   const handleOccurrenceClick = useCallback(
     (occurrence: { text: string; start: number; end: number; file: string }) => {
       setHighlightedOccurrence(occurrence)
+      // Ensure correct file is active
+      setActiveFile(occurrence.file)
+      // Highlight corresponding tag or search based on selected row
+      if (selectedCell) {
+        const [prefix, ...nameParts] = selectedCell.row.split(" - ")
+        const name = nameParts.join(" - ")
+        if (prefix === "Tag") {
+          setSelectedTagFilter(name)
+        } else if (prefix === "Search") {
+          setSearchTerm(name)
+        }
+      }
       onSelectOccurrence(occurrence)
     },
-    [onSelectOccurrence],
+    [onSelectOccurrence, selectedCell, setActiveFile, setSelectedTagFilter, setSearchTerm],
   )
 
   if (data.files.length === 0) {

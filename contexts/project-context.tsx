@@ -734,17 +734,50 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
   const handleSpecificSearchClick = useCallback((position: { start: number; end: number }) => {
     // Scroll to the specific occurrence
     if (contentRef.current) {
+      const root = contentRef.current
       const range = document.createRange()
-      const textNode = contentRef.current.firstChild
-      if (textNode) {
-        range.setStart(textNode, position.start)
-        range.setEnd(textNode, position.end)
-        const rect = range.getBoundingClientRect()
-        const containerRect = contentRef.current.getBoundingClientRect()
-        contentRef.current.scrollTo({
-          top: rect.top - containerRect.top - 50,
-          behavior: "smooth",
-        })
+      let startNode: Node | null = null
+      let startOffset = 0
+      let endNode: Node | null = null
+      let endOffset = 0
+      // Find start and end text nodes by offset
+      let remaining = position.start
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null)
+      while (walker.nextNode()) {
+        const node = walker.currentNode
+        const len = node.textContent?.length || 0
+        if (remaining <= len) {
+          startNode = node
+          startOffset = remaining
+          break
+        }
+        remaining -= len
+      }
+      remaining = position.end
+      const walker2 = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null)
+      while (walker2.nextNode()) {
+        const node = walker2.currentNode
+        const len = node.textContent?.length || 0
+        if (remaining <= len) {
+          endNode = node
+          endOffset = remaining
+          break
+        }
+        remaining -= len
+      }
+      if (startNode && endNode) {
+        try {
+          range.setStart(startNode, startOffset)
+          range.setEnd(endNode, endOffset)
+          const rect = range.getBoundingClientRect()
+          const containerRect = root.getBoundingClientRect()
+          root.scrollTo({
+            top: rect.top - containerRect.top - 50,
+            behavior: "smooth",
+          })
+        } catch (e) {
+          console.error("Failed to scroll to occurrence:", e)
+        }
       }
     }
   }, [])

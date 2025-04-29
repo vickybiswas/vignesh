@@ -88,7 +88,10 @@ export function TagAnalysisPanel({
                           start={position.start}
                           stop={position.stop}
                           isHighlighted={highlightedTag === tag.text}
-                          onClick={() => onOccurrenceClick(position)}
+                          onClick={() => {
+                            onTagClick(tag.text)
+                            onOccurrenceClick(position)
+                          }}
                         />
                         <Button
                           variant="ghost"
