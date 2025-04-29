@@ -68,7 +68,7 @@ export function FilesSidebar() {
   const files = currentProject?.files || {}
 
   return (
-    <div className="w-48 md:w-64 border-r p-2 md:p-4 h-full flex flex-col">
+    <div className="border-r p-2 md:p-4 h-full flex flex-col overflow-auto">
          <div className="flex justify-between items-center">
       <h2 className="text-lg font-semibold mb-4">Files</h2>
       <div>
