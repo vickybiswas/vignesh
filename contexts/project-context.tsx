@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { createContext, useState, useRef, useCallback, useMemo, useEffect, type ReactNode } from "react"
+import { useToast } from "@/hooks/use-toast"
 import { generatePastelColor } from "@/utils/colors"
 
 const LOCAL_STORAGE_KEY = "textViewerState"
@@ -300,6 +301,24 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
   const [tabulationRowSelections, setTabulationRowSelections] = useState<string[]>([])
   const [tabulationColumnSelections, setTabulationColumnSelections] = useState<string[]>([])
   const [tabulationExpansionType, setTabulationExpansionType] = useState<number>(0)
+  // Toast notifications
+  const { toast } = useToast()
+  // OpenAI API key and UI state
+  const [apiKey, setApiKey] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('OPENAI_API_KEY') || ''
+    }
+    return ''
+  })
+  const [showApiKeyDialog, setShowApiKeyDialog] = useState<boolean>(false)
+  // Function to save OpenAI API key
+  const handleSaveApiKey = useCallback((key: string) => {
+    setApiKey(key)
+    localStorage.setItem('OPENAI_API_KEY', key)
+    setShowApiKeyDialog(false)
+    toast({ title: 'API Key Saved', description: 'Your OpenAI API key was saved successfully.' })
+  }, [toast])
+  // Synonyms state
   const [showSynonymsPopup, setShowSynonymsPopup] = useState<boolean>(false)
   const [synonyms, setSynonyms] = useState<string[]>([])
   const [isFetchingSynonyms, setIsFetchingSynonyms] = useState<boolean>(false)
@@ -976,104 +995,117 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
   }, [])
 
   const fetchSynonyms = useCallback(async () => {
+    // Ensure API key is configured
+    if (!apiKey) {
+      setShowApiKeyDialog(true)
+      return
+    }
     if (!searchTerm || !activeFile) return
-
     setIsFetchingSynonyms(true)
     setSynonyms([])
     setShowSynonymsPopup(true)
 
     try {
-      const response = await fetch("/api/synonyms", {
+      // Call OpenAI Chat API for synonyms
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
         },
-        body: JSON.stringify({ word: searchTerm }),
+        body: JSON.stringify({
+          model: "gpt-3.5-turbo",
+          messages: [
+            { role: "system", content: "You are a helpful assistant that returns a JSON array of synonyms for a given word." },
+            { role: "user", content: `List  up to 10 synonyms for the word \"${searchTerm}\" as a JSON array.` },
+          ],
+          temperature: 0.7,
+          max_tokens: 200,
+        }),
       })
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch synonyms")
+      if (!res.ok) {
+        throw new Error(`OpenAI error ${res.status}`)
       }
-
-      const data = await response.json()
-      let synonymsList = data.synonyms || []
-
-      // If API returns no synonyms, generate fallback suggestions from the text
-      if (!synonymsList || synonymsList.length === 0) {
-        synonymsList = generateFallbackSynonyms(searchTerm, currentFile.content)
+      const json = await res.json()
+      const content = json.choices?.[0]?.message?.content || ""
+      // Extract synonyms array from response
+      let list: string[] = []
+      try {
+        const parsed = JSON.parse(content)
+        if (Array.isArray(parsed)) {
+          list = parsed
+        } else if (parsed && Array.isArray(parsed.synonyms)) {
+          list = parsed.synonyms
+        } else {
+          throw new Error('No array found')
+        }
+      } catch (e) {
+        // Fallback: strip brackets/quotes and split on commas
+        const stripped = content.replace(/[\[\]"\']+/g, '')
+        list = stripped.split(/,\s*/).map((w) => w.trim()).filter((w) => w)
       }
-
-      setSynonyms(synonymsList)
-    } catch (error) {
-      console.error("Error fetching synonyms:", error)
-      // Use fallback synonyms
-      const fallbackSynonyms = generateFallbackSynonyms(searchTerm, currentFile.content)
-      setSynonyms(fallbackSynonyms)
+      // Normalize: remove the original term, dedupe, limit to 10
+      const lowerTerm = searchTerm.toLowerCase()
+      list = Array.from(new Set(list.map((w) => w.trim())))
+        .filter((w) => w.toLowerCase() !== lowerTerm)
+        .slice(0, 10)
+      if (list.length === 0) {
+        list = generateFallbackSynonyms(searchTerm, currentFile.content)
+      }
+      setSynonyms(list)
+    } catch (err: any) {
+      console.error("Synonyms error", err)
+      // Show error toast
+      toast({ title: "Synonyms failed", description: err.message || "Error fetching synonyms", variant: "destructive" })
+      setSynonyms(generateFallbackSynonyms(searchTerm, currentFile.content))
     } finally {
       setIsFetchingSynonyms(false)
     }
-  }, [searchTerm, activeFile, generateFallbackSynonyms, currentFile.content])
+  }, [apiKey, searchTerm, activeFile, currentFile.content, generateFallbackSynonyms])
 
   const handleSaveSynonyms = useCallback(
     (selectedSynonyms: string[]) => {
-      if (!activeFile) return
-
-      // Process each selected synonym
-      selectedSynonyms.forEach((synonym) => {
-        // Generate a unique ID for this search mark
-        const searchId = `search-${synonym.replace(/\s+/g, "-").toLowerCase()}-${Date.now()}`
-
-        // Find all occurrences of the synonym in the current file
-        const content = currentFile.content
-        const occurrences: Occurrence[] = []
-        let index = content.toLowerCase().indexOf(synonym.toLowerCase())
-        let counter = 0
-
-        while (index !== -1 && counter < 1000) {
-          occurrences.push({
-            id: searchId,
-            text: content.slice(index, index + synonym.length),
-            start: index,
-            end: index + synonym.length,
-          })
-
-          index = content.toLowerCase().indexOf(synonym.toLowerCase(), index + 1)
-          counter++
-        }
-
-        // Only update if we found occurrences
-        if (occurrences.length > 0) {
-          setState((prevState) => {
-            const newState = { ...prevState }
-            const newProject = { ...newState[projectName] }
-
-            // Create the search mark
-            newProject.marks = {
-              ...newProject.marks,
-              [searchId]: {
-                color: generatePastelColor(),
-                type: "Search",
-                name: synonym,
-              },
-            }
-
-            // Add occurrences to the file
-            const newFile = {
-              ...newProject.files[activeFile],
-              occurrences: [...(newProject.files[activeFile].occurrences || []), ...occurrences],
-            }
-
-            newProject.files = { ...newProject.files, [activeFile]: newFile }
-            newState[projectName] = newProject
-
-            return newState
-          })
-        }
-      })
-
+      if (selectedSynonyms.length === 0) {
+        setShowSynonymsPopup(false)
+        return
+      }
       setShowSynonymsPopup(false)
+      setState((prevState) => {
+        const newState = { ...prevState }
+        const newProject = { ...newState[projectName] }
+        // For each synonym, create a search mark and scan all files
+        selectedSynonyms.forEach((synonym) => {
+          const norm = synonym.replace(/\s+/g, "-").toLowerCase()
+          const searchId = `search-${norm}-${Date.now()}`
+          // Add mark
+          newProject.marks = {
+            ...newProject.marks,
+            [searchId]: { color: generatePastelColor(), type: "Search", name: synonym },
+          }
+          // Scan every file for occurrences
+          Object.entries(newProject.files || {}).forEach(([fileName, file]) => {
+            const text = file.content || ""
+            const hits: Occurrence[] = []
+            let idx = text.toLowerCase().indexOf(synonym.toLowerCase())
+            let cnt = 0
+            while (idx !== -1 && cnt < 10000) {
+              hits.push({ id: searchId, text: text.slice(idx, idx + synonym.length), start: idx, end: idx + synonym.length })
+              idx = text.toLowerCase().indexOf(synonym.toLowerCase(), idx + 1)
+              cnt++
+            }
+            // Merge and dedupe occurrences for this file
+            const base = file.occurrences || []
+            newProject.files[fileName] = {
+              ...file,
+              occurrences: dedupeOccurrences([...base, ...hits]),
+            }
+          })
+        })
+        newState[projectName] = newProject
+        return newState
+      })
     },
-    [activeFile, currentFile.content, projectName],
+    [projectName],
   )
 
   const renderContent = useCallback(() => {
@@ -1711,6 +1743,11 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
     refreshAllSearches,
     getMarksByGroup,
     getAllMarksForTabulation,
+    // API key for OpenAI
+    apiKey,
+    showApiKeyDialog,
+    setShowApiKeyDialog,
+    handleSaveApiKey,
   }
 
   return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>

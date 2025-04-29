@@ -6,6 +6,7 @@ import { Header } from "./header"
 import { FilesSidebar } from "./files-sidebar"
 import { ContentArea } from "./content-area"
 import { AnalysisSidebar } from "./analysis-sidebar"
+import { ApiKeyDialog } from "@/components/api-key-dialog"
 import { ProjectContext } from "@/contexts/project-context"
 
 interface MainLayoutProps {
@@ -55,6 +56,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   return (
     <div className="flex flex-col h-screen max-w-full">
       <Header />
+        <ApiKeyDialog />
       <div className="flex flex-1 overflow-hidden">
         <div style={{ width: leftWidth }} className="flex-shrink-0 overflow-auto min-h-0">
           <FilesSidebar />
