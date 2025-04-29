@@ -337,58 +337,6 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state))
   }, [state])
 
-   // Calculate search occurrences when activeFile or searchTerm changes
-   useEffect(() => {
-    if (!searchTerm || !activeFile || !currentProject.files[activeFile]) return
-
-    // Check if we already have this search term as a mark
-    const existingSearchMark = Object.entries(currentProject.marks || {}).find(
-      ([_, mark]) => mark.type === "Search" && mark.name.toLowerCase() === searchTerm.toLowerCase(),
-    )
-
-    if (existingSearchMark) return // Don't recalculate if already exists
-
-    // Find all occurrences in the text
-    const content = currentProject.files[activeFile].content
-    const results: Occurrence[] = []
-    let index = content.toLowerCase().indexOf(searchTerm.toLowerCase())
-    let counter = 0
-
-    // Generate a temporary ID for this search
-    const tempSearchId = `temp-search-${searchTerm.replace(/\s+/g, "-").toLowerCase()}`
-
-    while (index !== -1) {
-      results.push({
-        id: tempSearchId,
-        text: content.slice(index, index + searchTerm.length),
-        start: index,
-        end: index + searchTerm.length,
-      })
-      index = content.toLowerCase().indexOf(searchTerm.toLowerCase(), index + 1)
-      counter++
-      if (counter > 1000) break // Safety limit
-    }
-
-    // Update state with temporary search occurrences
-    if (results.length > 0) {
-      setState((prevState) => {
-        const newState = { ...prevState }
-        const newProject = { ...newState[projectName] }
-        const newFile = {
-          ...newProject.files[activeFile],
-          occurrences: [
-            ...(newProject.files[activeFile].occurrences || []).filter((occ) => !occ.id.startsWith("temp-")),
-            ...results,
-          ],
-        }
-
-        newProject.files = { ...newProject.files, [activeFile]: newFile }
-        newState[projectName] = newProject
-
-        return newState
-      })
-    }
-  }, [activeFile, currentProject, projectName])
 
   // Function to perform search
   const performSearch = useCallback(
@@ -593,32 +541,36 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
     setState((prevState) => {
       const newState = { ...prevState }
       const newProject = { ...newState[projectName] }
-
       // Create the search mark
       newProject.marks = {
         ...newProject.marks,
-        [searchId]: {
-          color: generatePastelColor(),
-          type: "Search",
-          name: searchTerm,
-        },
+        [searchId]: { color: generatePastelColor(), type: "Search", name: searchTerm },
       }
-
-      // Update temporary occurrences to use the new mark ID in all files
-      Object.keys(newProject.files).forEach((fileName) => {
-        if (newProject.files[fileName].occurrences) {
-          newProject.files[fileName] = {
-            ...newProject.files[fileName],
-            occurrences: (newProject.files[fileName].occurrences || []).map((occ) => {
-              if (occ.id.startsWith("temp-") && occ.id.includes(searchTerm.toLowerCase())) {
-                return { ...occ, id: searchId }
-              }
-              return occ
-            }),
-          }
+      // Prepare normalized term for temp ID cleanup
+      const norm = searchTerm.trim().toLowerCase().replace(/\s+/g, "-")
+      const tempPrefix = `temp-search-${norm}`
+      // Scan all files for the new search term
+      Object.entries(newProject.files).forEach(([fileName, file]) => {
+        const content = file.content || ""
+        // Remove any temp occurrences for this term
+        const baseOcc = (file.occurrences || []).filter(
+          (occ) => !occ.id.startsWith(tempPrefix)
+        )
+        // Find all occurrences in this file
+        const results: Occurrence[] = []
+        let idx = content.toLowerCase().indexOf(searchTerm.toLowerCase())
+        let counter = 0
+        while (idx !== -1 && counter < 10000) {
+          results.push({ id: searchId, text: content.slice(idx, idx + searchTerm.length), start: idx, end: idx + searchTerm.length })
+          idx = content.toLowerCase().indexOf(searchTerm.toLowerCase(), idx + 1)
+          counter++
+        }
+        // Update file occurrences
+        newProject.files[fileName] = {
+          ...file,
+          occurrences: [...baseOcc, ...results],
         }
       })
-
       newState[projectName] = newProject
       return newState
     })
