@@ -209,33 +209,49 @@ export function TabulationViewContent({ data, onClose, onSelectOccurrence }: Tab
           // Find intersections based on the expansion type
           const intersectionOccurrences = rowOccurrences.filter((rowOcc) =>
             colOccurrences.some((colOcc) => {
+              // Get content once
+              const content = currentProject.files[fileName]?.content || ""
+              const startPos = Math.min(rowOcc.start, colOcc.start)
+              const endPos = Math.max(rowOcc.end, colOcc.end)
               if (expansionType === 0) {
                 // Direct text overlap
                 return Math.max(rowOcc.start, colOcc.start) < Math.min(rowOcc.end, colOcc.end)
               } else if (expansionType === 1) {
-                // Same sentence: between nearest periods
-                const content = currentProject.files[fileName]?.content || ""
-                const startPos = Math.min(rowOcc.start, colOcc.start)
-                const endPos = Math.max(rowOcc.end, colOcc.end)
-                // Find sentence boundaries
-                let sentStart = content.lastIndexOf('.', startPos)
-                sentStart = sentStart === -1 ? 0 : sentStart + 1
-                let sentEnd = content.indexOf('.', endPos)
-                sentEnd = sentEnd === -1 ? content.length : sentEnd
+                // Same sentence: boundary at ., !, or ?
+                // Find last sentence-end before startPos
+                const punctuations = ['.', '!', '?']
+                let lastPunc = -1
+                for (const p of punctuations) {
+                  lastPunc = Math.max(lastPunc, content.lastIndexOf(p, startPos))
+                }
+                const sentStart = lastPunc === -1 ? 0 : lastPunc + 1
+                // Find next sentence-end after endPos
+                let nextPunc = content.length
+                for (const p of punctuations) {
+                  const idx = content.indexOf(p, endPos)
+                  if (idx !== -1 && idx < nextPunc) nextPunc = idx
+                }
+                const sentEnd = nextPunc === content.length ? content.length : nextPunc + 1
                 return (
                   rowOcc.start >= sentStart && rowOcc.end <= sentEnd &&
                   colOcc.start >= sentStart && colOcc.end <= sentEnd
                 )
               } else {
-                // Same paragraph: between blank-line separators
-                const content = currentProject.files[fileName]?.content || ""
-                const startPos = Math.min(rowOcc.start, colOcc.start)
-                const endPos = Math.max(rowOcc.end, colOcc.end)
-                // Find paragraph boundaries
-                let paraStart = content.lastIndexOf('\n\n', startPos)
-                paraStart = paraStart === -1 ? 0 : paraStart + 2
-                let paraEnd = content.indexOf('\n\n', endPos)
-                paraEnd = paraEnd === -1 ? content.length : paraEnd
+                // Same paragraph: boundary at blank lines or single newline
+                let sep = '\n\n'
+                let lastIdx = content.lastIndexOf(sep, startPos)
+                if (lastIdx === -1) {
+                  sep = '\n'
+                  lastIdx = content.lastIndexOf(sep, startPos)
+                }
+                const paraStart = lastIdx === -1 ? 0 : lastIdx + sep.length
+                // Find next separator after endPos
+                let nextIdx = content.indexOf(sep, endPos)
+                if (nextIdx === -1 && sep === '\n\n') {
+                  sep = '\n'
+                  nextIdx = content.indexOf(sep, endPos)
+                }
+                const paraEnd = nextIdx === -1 ? content.length : nextIdx
                 return (
                   rowOcc.start >= paraStart && rowOcc.end <= paraEnd &&
                   colOcc.start >= paraStart && colOcc.end <= paraEnd

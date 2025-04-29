@@ -15,6 +15,17 @@ interface Occurrence {
   text: string
 }
 
+// Deduplicate occurrences by (id, start, end)
+const dedupeOccurrences = (occs: Occurrence[]): Occurrence[] => {
+  const seen = new Set<string>()
+  return occs.filter((o) => {
+    const key = `${o.id}-${o.start}-${o.end}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 interface TextFile {
   content: string
   occurrences: Occurrence[]
@@ -474,17 +485,19 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
         }
 
         // Add occurrence to the file
+        // Append new occurrence and dedupe
+        const existingOccs = newProject.files[activeFile].occurrences || []
+        const newOccurrence: Occurrence = {
+          id: existingMarkId || markId,
+          start: selection.start,
+          end: selection.end,
+          text: selectedText,
+        }
+        const combined = [...existingOccs, newOccurrence]
+        const unique = dedupeOccurrences(combined)
         const newFile = {
           ...newProject.files[activeFile],
-          occurrences: [
-            ...(newProject.files[activeFile].occurrences || []),
-            {
-              id: existingMarkId || markId,
-              start: selection.start,
-              end: selection.end,
-              text: selectedText,
-            },
-          ],
+          occurrences: unique,
         }
 
         newProject.files = { ...newProject.files, [activeFile]: newFile }
@@ -566,9 +579,10 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
           counter++
         }
         // Update file occurrences
+        // Merge occurrences and dedupe
         newProject.files[fileName] = {
           ...file,
-          occurrences: [...baseOcc, ...results],
+          occurrences: dedupeOccurrences([...baseOcc, ...results]),
         }
       })
       newState[projectName] = newProject
@@ -1594,7 +1608,8 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
               count++
             }
           })
-          newProject.files[fileName] = { ...file, occurrences: newOccurrences }
+        // Dedupe final occurrences
+        newProject.files[fileName] = { ...file, occurrences: dedupeOccurrences(newOccurrences) }
         })
         newState[projectName] = newProject
         return newState
