@@ -200,62 +200,48 @@ export function TabulationViewContent({ data, onClose, onSelectOccurrence }: Tab
 
     // Calculate intersections for each file
     data.files.forEach((fileName) => {
+      // Get raw content for boundary parsing
+      const content = currentProject.files[fileName]?.content || ""
+      // Build sentence boundaries
+      const sentenceBounds: { start: number; end: number }[] = []
+      const sentenceRegex = /[^.!?]+[.!?]*/g
+      let m: RegExpExecArray | null
+      while ((m = sentenceRegex.exec(content)) !== null) {
+        sentenceBounds.push({ start: m.index, end: m.index + m[0].length })
+      }
+      // Build paragraph boundaries (split by blank lines)
+      const paragraphBounds: { start: number; end: number }[] = []
+      const paras = content.split(/\r?\n\r?\n/)
+      let pIdx = 0
+      paras.forEach((p) => {
+        const idx = content.indexOf(p, pIdx)
+        if (idx !== -1) {
+          paragraphBounds.push({ start: idx, end: idx + p.length })
+          pIdx = idx + p.length
+        }
+      })
+      // Now for each row/col
       rowSelections.forEach((row) => {
         const rowOccurrences = data.getOccurrences(row, fileName)
-
         columnSelections.forEach((col) => {
           const colOccurrences = data.getOccurrences(col, fileName)
 
-          // Find intersections based on the expansion type
+          // Intersect based on expansionType
           const intersectionOccurrences = rowOccurrences.filter((rowOcc) =>
             colOccurrences.some((colOcc) => {
-              // Get content once
-              const content = currentProject.files[fileName]?.content || ""
-              const startPos = Math.min(rowOcc.start, colOcc.start)
-              const endPos = Math.max(rowOcc.end, colOcc.end)
               if (expansionType === 0) {
-                // Direct text overlap
+                // Direct overlap
                 return Math.max(rowOcc.start, colOcc.start) < Math.min(rowOcc.end, colOcc.end)
               } else if (expansionType === 1) {
-                // Same sentence: boundary at ., !, or ?
-                // Find last sentence-end before startPos
-                const punctuations = ['.', '!', '?']
-                let lastPunc = -1
-                for (const p of punctuations) {
-                  lastPunc = Math.max(lastPunc, content.lastIndexOf(p, startPos))
-                }
-                const sentStart = lastPunc === -1 ? 0 : lastPunc + 1
-                // Find next sentence-end after endPos
-                let nextPunc = content.length
-                for (const p of punctuations) {
-                  const idx = content.indexOf(p, endPos)
-                  if (idx !== -1 && idx < nextPunc) nextPunc = idx
-                }
-                const sentEnd = nextPunc === content.length ? content.length : nextPunc + 1
-                return (
-                  rowOcc.start >= sentStart && rowOcc.end <= sentEnd &&
-                  colOcc.start >= sentStart && colOcc.end <= sentEnd
-                )
+                // Same sentence
+                const sb = sentenceBounds.find((b) => rowOcc.start >= b.start && rowOcc.end <= b.end)
+                const sc = sentenceBounds.find((b) => colOcc.start >= b.start && colOcc.end <= b.end)
+                return sb !== undefined && sb === sc
               } else {
-                // Same paragraph: boundary at blank lines or single newline
-                let sep = '\n\n'
-                let lastIdx = content.lastIndexOf(sep, startPos)
-                if (lastIdx === -1) {
-                  sep = '\n'
-                  lastIdx = content.lastIndexOf(sep, startPos)
-                }
-                const paraStart = lastIdx === -1 ? 0 : lastIdx + sep.length
-                // Find next separator after endPos
-                let nextIdx = content.indexOf(sep, endPos)
-                if (nextIdx === -1 && sep === '\n\n') {
-                  sep = '\n'
-                  nextIdx = content.indexOf(sep, endPos)
-                }
-                const paraEnd = nextIdx === -1 ? content.length : nextIdx
-                return (
-                  rowOcc.start >= paraStart && rowOcc.end <= paraEnd &&
-                  colOcc.start >= paraStart && colOcc.end <= paraEnd
-                )
+                // Same paragraph
+                const pb = paragraphBounds.find((b) => rowOcc.start >= b.start && rowOcc.end <= b.end)
+                const pc = paragraphBounds.find((b) => colOcc.start >= b.start && colOcc.end <= b.end)
+                return pb !== undefined && pb === pc
               }
             }),
           )
