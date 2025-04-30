@@ -36,15 +36,17 @@ export function SplashModal() {
           </DialogTitle>
           <DialogTitle className="text-center">Vighesh QDA Tool</DialogTitle>
           <DialogDescription className="text-center">
-            A lightweight qualitative data analysis tool for tagging, searching, and visualizing text annotations.
+            A lightweight Qualitative Data Analysis (QDA) tool to help researchers analyze and manage qualitative data, such as interview transcripts, focus group discussions, and field notes. Allows organizing, coding (Search, Tag, and Group), and visualizing qualitative data, helping researchers identify patterns and themes. 
           </DialogDescription>
         </DialogHeader>
         <div className="mt-4 space-y-2">
-          <p className="font-semibold">Contributors:</p>
+        <p className="font-semibold">Creator:</p>
           <ul className="list-disc list-inside">
-            <li>Vighesh Sharma</li>
-            <li>Jane Doe</li>
-            <li>John Smith</li>
+            <li>Vicky Biswas</li>
+          </ul>
+          <p className="font-semibold">Guidance:</p>
+          <ul className="list-disc list-inside">
+            <li>Professor Vignesh - IIT Delhi</li>
           </ul>
           <div className="flex items-center mt-4">
             <Checkbox

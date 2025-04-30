@@ -1,13 +1,6 @@
 "use client"
 
-// import type { Metadata } from 'next'
 import './globals.css'
-
-// export const metadata: Metadata = {
-//   title: 'Vighesh - QDA Tool',
-//   description: 'Created with v0',
-//   generator: 'v0.dev',
-// }
 
 import Script from 'next/script'
 import { usePathname } from 'next/navigation'
@@ -40,6 +33,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
+        {/* Page metadata */}
+        <title>Vignesh QDA Tool</title>
+        <meta name="description" content="Vignesh QDA Tool - qualitative data analysis application" />
+        <link rel="icon" href="/favicon.ico" />
         {/* Google Analytics */}
         <Script
           src={`https://www.googletagmanager.com/gtag/js?id=${gtag.GA_MEASUREMENT_ID}`}

@@ -871,7 +871,7 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
         })
         .catch(error => {
           console.error("Upload fetch error:", error)
-          alert("Failed to load uploaded state file from URL.")
+          alert("Failed to load file from URL.")
         })
     }
   }, [])
