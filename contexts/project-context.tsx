@@ -5,6 +5,7 @@ import type React from "react"
 import { createContext, useState, useRef, useCallback, useMemo, useEffect, type ReactNode } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { generatePastelColor } from "@/utils/colors"
+import * as gtag from "@/lib/gtag"
 
 const LOCAL_STORAGE_KEY = "textViewerState"
 
@@ -639,6 +640,8 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
     (newContent: string) => {
       if (!activeFile) return
 
+      // Analytics: record search saved
+      gtag.event({ action: 'save_search', category: 'Search', label: searchTerm })
       setState((prevState) => {
         const newState = { ...prevState }
         const newProject = { ...newState[projectName] }
@@ -663,6 +666,8 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
 
   const handleSelectFile = useCallback((fileName: string) => {
     setActiveFile(fileName)
+    // Analytics: record file selection
+    gtag.event({ action: 'select_file', category: 'Files', label: fileName })
     setSelectedTagFilter("all")
     setSearchTerm("")
   }, [])
@@ -690,6 +695,12 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
         })
 
         setActiveFile(fileName)
+        // Analytics: record file addition
+        gtag.event({
+          action: 'add_file',
+          category: 'Files',
+          label: fileName,
+        })
       }
     },
     [currentProject.files, projectName],
@@ -701,6 +712,8 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
       reader.onload = (e) => {
         const content = e.target?.result as string
         handleAddFile(file.name, content)
+        // Analytics: record file upload
+        gtag.event({ action: 'upload_file', category: 'Files', label: file.name })
       }
       reader.readAsText(file)
     },
@@ -708,16 +721,22 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
   )
 
   const handleTagClick = useCallback((label: string) => {
-    setSelectedTagFilter((prevFilter) => (prevFilter === label ? "all" : label))
+  setSelectedTagFilter((prevFilter) => (prevFilter === label ? "all" : label))
+  // Analytics: record tag filter change
+  gtag.event({ action: 'filter_tag', category: 'Tag', label })
   }, [])
 
   const handleSearchClick = useCallback((search: string) => {
     setSearchTerm((prevSearch) => (prevSearch === search ? "" : search))
+    // Analytics: record search selection
+    gtag.event({ action: 'select_search', category: 'Search', label: search })
     setSelectedTagFilter("all")
   }, [])
 
   const handleSpecificSearchClick = useCallback((position: { start: number; end: number }) => {
-    // Scroll to the specific occurrence
+  // Analytics: record occurrence click
+  gtag.event({ action: 'click_occurrence', category: 'Navigation', label: `${position.start}-${position.end}` })
+  // Scroll to the specific occurrence
     if (contentRef.current) {
       const root = contentRef.current
       const range = document.createRange()
@@ -783,6 +802,8 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
+    // Analytics: record project state download
+    gtag.event({ action: 'download_state', category: 'Project', label: projectName })
   }, [state, projectName])
 
   const handleUploadState = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -811,7 +832,9 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
           alert("Invalid state file. Please upload a valid JSON file.")
         }
       }
-      reader.readAsText(file)
+        reader.readAsText(file)
+        // Analytics: record project state upload
+        gtag.event({ action: 'upload_state', category: 'Project', label: file.name })
     }
   }, [])
 
@@ -889,6 +912,12 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
         return newState
       })
 
+      // Analytics: record tag removal
+      gtag.event({
+        action: 'remove_tag',
+        category: 'Tagging',
+        label: tagId,
+      })
       // Reset tag filter if it was the removed tag
       const removedTag = currentProject.marks?.[tagId]
       if (removedTag && selectedTagFilter === removedTag.name) {
@@ -915,6 +944,12 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
         newProject.files = { ...newProject.files, [activeFile]: newFile }
         newState[projectName] = newProject
 
+        // Analytics: record occurrence removal
+        gtag.event({
+          action: 'remove_occurrence',
+          category: 'Tagging',
+          label: tagId,
+        })
         return newState
       })
     },
@@ -933,6 +968,8 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
       link.click()
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
+      // Analytics: record file save
+      gtag.event({ action: 'save_file', category: 'Files', label: fileName })
     },
     [currentProject.files],
   )
@@ -956,6 +993,12 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
         }
 
         return newState
+      })
+      // Analytics: record file removal
+      gtag.event({
+        action: 'remove_file',
+        category: 'Files',
+        label: fileName,
       })
     },
     [activeFile, projectName],
@@ -1001,6 +1044,8 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
       return
     }
     if (!searchTerm || !activeFile) return
+    // Analytics: record synonyms fetch request
+    gtag.event({ action: 'fetch_synonyms', category: 'Search', label: searchTerm })
     setIsFetchingSynonyms(true)
     setSynonyms([])
     setShowSynonymsPopup(true)
@@ -1065,6 +1110,10 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
 
   const handleSaveSynonyms = useCallback(
     (selectedSynonyms: string[]) => {
+      // Analytics: record saved synonyms
+      if (selectedSynonyms.length > 0) {
+        gtag.event({ action: 'save_synonyms', category: 'Search', label: selectedSynonyms.join(',') })
+      }
       if (selectedSynonyms.length === 0) {
         setShowSynonymsPopup(false)
         return
@@ -1373,6 +1422,8 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
 
       setProjectName(name)
       setActiveFile("sample.txt")
+      // Analytics: record project creation
+      gtag.event({ action: 'create_project', category: 'Project', label: name })
     },
     [state],
   )
@@ -1381,6 +1432,8 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
     (name: string) => {
       if (state[name]) {
         setProjectName(name)
+        // Analytics: record project switch
+        gtag.event({ action: 'switch_project', category: 'Project', label: name })
 
         // Set active file to the first file in the project
         const firstFileName = Object.keys(state[name].files || {})[0] || ""
@@ -1397,6 +1450,8 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
   const updateProjectName = useCallback(
     (oldName: string, newName: string) => {
       if (!oldName.trim() || !newName.trim() || oldName === newName || state[newName]) return
+      // Analytics: record project rename
+      gtag.event({ action: 'rename_project', category: 'Project', label: `${oldName}->${newName}` })
       const newState = { ...state }
       const projectData = newState[oldName]
       if (!projectData) return
@@ -1414,6 +1469,8 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
   const deleteProject = useCallback(
     (name: string) => {
       if (!state[name]) return
+      // Analytics: record project deletion
+      gtag.event({ action: 'delete_project', category: 'Project', label: name })
       const newState = { ...state }
       delete newState[name]
       setState(newState)
