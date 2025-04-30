@@ -12,64 +12,113 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { User, Moon, Sun, Key } from "lucide-react"
+import { User, Moon, Sun, Key, X } from "lucide-react"
 import { useTheme } from "next-themes"
 
+/**
+ * UserDropdown renders a Google Sign-In button when not authenticated,
+ * and shows a user menu when signed in entirely on the client.
+ */
+declare global {
+  interface Window { google: any }
+}
 export function UserDropdown() {
-  const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false)
+  const [user, setUser] = useState<{ name: string; email: string; picture?: string } | null>(null)
   const [apiKey, setApiKey] = useState("")
+  const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false)
   const { setTheme, theme } = useTheme()
 
+  // Load saved API key
   useEffect(() => {
-    const storedApiKey = localStorage.getItem("openai_api_key")
-    if (storedApiKey) {
-      setApiKey(storedApiKey)
+    const stored = localStorage.getItem("openai_api_key")
+    if (stored) setApiKey(stored)
+  }, [])
+
+  // Google Identity Services init
+  useEffect(() => {
+    // Baked-in Google OAuth Client ID for static CDN deployment
+    const clientId = "1079401176023-eaddv9q2jjkdtt37ou4ekg49lingvrb1.apps.googleusercontent.com"
+    function handleCredentialResponse(response: any) {
+      try {
+        const payload = JSON.parse(atob(response.credential.split('.')[1]))
+        setUser({ name: payload.name, email: payload.email, picture: payload.picture })
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    const initializeGSI = () => {
+      // Initialize Google Identity Services and render the button
+      window.google.accounts.id.initialize({ client_id: clientId, callback: handleCredentialResponse })
+      const container = document.getElementById('googleSignInDiv')
+      if (container) {
+        window.google.accounts.id.renderButton(container, { theme: 'outline', size: 'large' })
+      }
+      // Optionally prompt One Tap
+      window.google.accounts.id.prompt()
+    }
+    if (window.google?.accounts?.id) {
+      initializeGSI()
+    } else {
+      const script = document.createElement('script')
+      script.src = 'https://accounts.google.com/gsi/client'
+      script.async = true
+      script.defer = true
+      script.onload = initializeGSI
+      document.body.appendChild(script)
+      return () => { document.body.removeChild(script) }
     }
   }, [])
+
+  const handleSignOut = () => {
+    window.google.accounts.id.disableAutoSelect()
+    setUser(null)
+  }
 
   const handleSaveApiKey = () => {
     localStorage.setItem("openai_api_key", apiKey)
     setIsApiKeyDialogOpen(false)
   }
+  const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark')
 
-  const toggleTheme = () => {
-    setTheme(theme === "dark" ? "light" : "dark")
+  // If not signed in yet, render the Google Sign-In button container
+  if (!user) {
+    // Container for Google Sign-In button
+    return <div id="googleSignInDiv" className="inline-block" />
   }
 
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="w-8 h-8 rounded-full">
-            <User className="h-4 w-4" />
+          <Button variant="ghost" className="w-8 h-8 rounded-full p-0 overflow-hidden">
+            {user.picture ? (
+              <img src={user.picture} alt={user.name} className="h-full w-full rounded-full object-cover" />
+            ) : (
+              <User className="h-6 w-6" />
+            )}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuLabel>Vicky Biswas</DropdownMenuLabel>
-          <DropdownMenuSeparator />
+          <DropdownMenuLabel>{user.name}</DropdownMenuLabel>
           <DropdownMenuItem onClick={toggleTheme}>
-            {theme === "dark" ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
-            Toggle theme
+            {theme === 'dark' ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />} Toggle Theme
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setIsApiKeyDialogOpen(true)}>
-            <Key className="mr-2 h-4 w-4" />
-            Set OpenAI API Key
+            <Key className="mr-2 h-4 w-4" /> Set OpenAI API Key
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={handleSignOut}>
+            <X className="mr-2 h-4 w-4" /> Sign Out
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-
       <Dialog open={isApiKeyDialogOpen} onOpenChange={setIsApiKeyDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Set OpenAI API Key</DialogTitle>
-            <DialogDescription>Enter your OpenAI API key to enable AI-powered features.</DialogDescription>
+            <DialogDescription>Enter your OpenAI API key to enable AI features.</DialogDescription>
           </DialogHeader>
-          <Input
-            type="password"
-            placeholder="Enter your API key"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-          />
+          <Input type="password" placeholder="API key" value={apiKey} onChange={e => setApiKey(e.target.value)} />
           <Button onClick={handleSaveApiKey}>Save</Button>
         </DialogContent>
       </Dialog>
