@@ -81,28 +81,32 @@ export function TagAnalysisPanel({
                     </div>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="mt-2 space-y-2">
-                    {fileOccurrences.map((position, index) => (
-                      <div key={index} className="relative">
-                        <TextOccurrence
-                          text={position.text}
-                          start={position.start}
-                          stop={position.stop}
-                          isHighlighted={highlightedTag === tag.text}
-                          onClick={() => {
-                            onTagClick(tag.text)
-                            onOccurrenceClick(position)
-                          }}
-                        />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="absolute top-2 right-2 h-6 w-6"
-                          onClick={() => onRemoveOccurrence(tag.id, position)}
-                        >
-                          <Trash className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))}
+                    {fileOccurrences.map((position, index) => {
+                      // normalize to { start, end }
+                      const occ = { start: position.start, end: position.stop }
+                      return (
+                        <div key={index} className="relative">
+                          <TextOccurrence
+                            text={position.text}
+                            start={position.start}
+                            stop={position.stop}
+                            isHighlighted={highlightedTag === tag.text}
+                            onClick={() => {
+                              onTagClick(tag.text)
+                              onOccurrenceClick(occ)
+                            }}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute top-2 right-2 h-6 w-6"
+                            onClick={() => onRemoveOccurrence(tag.id, occ)}
+                          >
+                            <Trash className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )
+                    })}
                   </CollapsibleContent>
                 </Collapsible>
               )
