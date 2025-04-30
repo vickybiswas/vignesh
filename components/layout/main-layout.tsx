@@ -16,7 +16,7 @@ interface MainLayoutProps {
 export function MainLayout({ children }: MainLayoutProps) {
   const { currentProject } = useContext(ProjectContext)
   const [leftWidth, setLeftWidth] = useState<number>(300)
-  const [rightWidth, setRightWidth] = useState<number>(300)
+  const [rightWidth, setRightWidth] = useState<number>(400)
   const startDragLeft = (e: React.MouseEvent) => {
     e.preventDefault()
     const startX = e.clientX

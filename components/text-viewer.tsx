@@ -4,6 +4,7 @@ import type React from "react"
 import { useState, useCallback, useMemo, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -182,6 +183,7 @@ export default function TextViewer() {
   const [isProjectNameDialogOpen, setIsProjectNameDialogOpen] = useState<boolean>(false)
   const [editedProjectName, setEditedProjectName] = useState<string>(projectName)
   const contentRef = useRef<HTMLDivElement>(null)
+  const [isEditingContent, setIsEditingContent] = useState<boolean>(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Get current project
@@ -1127,7 +1129,7 @@ export default function TextViewer() {
           onSaveFile={handleSaveFile}
           onRemoveFile={handleRemoveFile}
         />
-        <div className="flex-grow grid gap-6 md:grid-cols-2 h-full overflow-hidden">
+        <div className="flex-grow grid gap-6 md:grid-cols-[1fr_400px] h-full overflow-hidden">
           <div className="flex flex-col">
             <div className="mb-4 flex gap-2">
               <Select value={selectedTagFilter} onValueChange={handleTagFilterChange}>
@@ -1172,11 +1174,13 @@ export default function TextViewer() {
                     </Button>
                   )}
                 </div>
-                <Button type="submit">
+                <Button type="submit" variant="ghost" size="icon">
                   <Search className="h-4 w-4" />
                 </Button>
                 <Button
                   type="button"
+                  variant="ghost"
+                  size="icon"
                   onClick={saveSearch}
                   disabled={
                     !searchTerm ||
@@ -1186,21 +1190,37 @@ export default function TextViewer() {
                 >
                   <Save className="h-4 w-4" />
                 </Button>
-                <Button type="button" onClick={fetchSynonyms} disabled={!searchTerm} title="Find synonyms">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={fetchSynonyms}
+                  disabled={!searchTerm}
+                  title="Find synonyms"
+                >
                   <BookOpen className="h-4 w-4" />
                 </Button>
               </form>
             </div>
-            <div
-              ref={contentRef}
-              className="text-lg p-4 border rounded relative whitespace-pre-wrap h-full overflow-auto"
-              contentEditable
-              suppressContentEditableWarning
-              onInput={(e) => handleContentChange(e.currentTarget.textContent || "")}
-              onContextMenu={handleContextMenu}
-            >
-              {currentFile?.content ? renderContent() : null}
-            </div>
+            {isEditingContent ? (
+              <Textarea
+                className="text-lg p-4 border rounded whitespace-pre-wrap h-full w-full overflow-auto font-mono"
+                value={currentFile?.content || ""}
+                onChange={(e) => handleContentChange(e.target.value)}
+                onBlur={() => setIsEditingContent(false)}
+                autoFocus
+              />
+            ) : (
+              <div
+                ref={contentRef}
+                className="text-lg p-4 border rounded relative whitespace-pre-wrap h-full overflow-auto"
+                onClick={() => setIsEditingContent(true)}
+                onContextMenu={handleContextMenu}
+                tabIndex={0}
+              >
+                {currentFile?.content ? renderContent() : null}
+              </div>
+            )}
           </div>
           <div className="space-y-6 overflow-auto">
             <div className="flex justify-between items-center">

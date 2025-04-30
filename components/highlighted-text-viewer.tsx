@@ -36,7 +36,7 @@ export const HighlightedTextViewer = React.forwardRef<HTMLDivElement, Highlighte
       }
     }, [highlightStart, highlightEnd])
 
-    const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
+    const handleInput = (e: React.FocusEvent<HTMLDivElement>) => {
       if (onContentChange) {
         onContentChange(e.currentTarget.textContent || "")
       }
@@ -45,23 +45,23 @@ export const HighlightedTextViewer = React.forwardRef<HTMLDivElement, Highlighte
     return (
       <Card className="w-full h-full overflow-hidden">
         <CardContent className="p-6 h-full">
-          <div
-            ref={(el) => {
-              contentRef.current = el
-              if (typeof ref === "function") {
-                ref(el)
-              } else if (ref) {
-                ref.current = el
-              }
-            }}
-            className="text-lg p-4 border rounded relative whitespace-pre-wrap h-full overflow-auto"
-            contentEditable={!!onContentChange}
-            suppressContentEditableWarning
-            onInput={handleInput}
-            onContextMenu={onContextMenu}
-          >
-            {content}
-          </div>
+            <div
+              ref={(el) => {
+                contentRef.current = el
+                if (typeof ref === "function") {
+                  ref(el)
+                } else if (ref) {
+                  ref.current = el
+                }
+              }}
+              className="text-lg p-4 border rounded relative whitespace-pre-wrap h-full overflow-auto"
+              contentEditable={!!onContentChange}
+              suppressContentEditableWarning
+              onBlur={handleInput}
+              onContextMenu={onContextMenu}
+            >
+              {content}
+            </div>
         </CardContent>
       </Card>
     )

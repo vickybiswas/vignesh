@@ -1,8 +1,9 @@
 "use client"
 
-import { useContext } from "react"
+import { useContext, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Search, Save, X, BookOpen } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ProjectContext } from "@/contexts/project-context"
@@ -44,6 +45,7 @@ export function ContentArea() {
     savedSearches,
     contentRef,
   } = useContext(ProjectContext)
+  const [isEditing, setIsEditing] = useState<boolean>(false)
 
   // Ensure we have valid objects
   const marks = currentProject?.marks || {}
@@ -93,36 +95,54 @@ export function ContentArea() {
               </Button>
             )}
           </div>
-          <Button type="submit">
-            <Search className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            onClick={saveSearch}
-            disabled={
-              !searchTerm ||
-              (searchResults?.length || 0) === 0 ||
-              savedSearches?.some((s) => s.name.toLowerCase() === searchTerm.toLowerCase()) ||
-              false
-            }
-          >
-            <Save className="h-4 w-4" />
-          </Button>
-          <Button type="button" onClick={fetchSynonyms} disabled={!searchTerm} title="Find synonyms">
-            <BookOpen className="h-4 w-4" />
-          </Button>
+        <Button type="submit" variant="ghost" size="icon">
+          <Search className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={saveSearch}
+          disabled={
+            !searchTerm ||
+            (searchResults?.length || 0) === 0 ||
+            savedSearches?.some((s) => s.name.toLowerCase() === searchTerm.toLowerCase()) ||
+            false
+          }
+        >
+          <Save className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={fetchSynonyms}
+          disabled={!searchTerm}
+          title="Find synonyms"
+        >
+          <BookOpen className="h-4 w-4" />
+        </Button>
         </form>
       </div>
-      <div
-        ref={contentRef}
-        className="text-lg p-4 border rounded relative whitespace-pre-wrap h-full overflow-auto"
-        contentEditable
-        suppressContentEditableWarning
-        onInput={(e) => handleContentChange(e.currentTarget.textContent || "")}
-        onContextMenu={handleContextMenu}
-      >
-        {currentFile?.content ? renderContent() : null}
-      </div>
+      {isEditing ? (
+        <Textarea
+          className="text-lg p-4 border rounded whitespace-pre-wrap h-full w-full overflow-auto font-mono"
+          value={currentFile?.content || ""}
+          onChange={(e) => handleContentChange(e.target.value)}
+          onBlur={() => setIsEditing(false)}
+          autoFocus
+        />
+        ) : (
+        <div
+          ref={contentRef}
+          className="text-lg p-4 border rounded relative whitespace-pre-wrap h-full overflow-auto"
+          onClick={(e) => { if (e.detail === 3) setIsEditing(true); }}
+          onContextMenu={handleContextMenu}
+          tabIndex={0}
+        >
+          {currentFile?.content ? renderContent() : null}
+        </div>
+      )}
 
       {/* Context Menu for Adding Tags */}
       <DropdownMenu open={!!contextMenuPosition} onOpenChange={() => setContextMenuPosition(null)}>
