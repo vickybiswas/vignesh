@@ -838,6 +838,44 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
     }
   }, [])
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const uploadUrl = params.get('upload')
+    if (uploadUrl) {
+      fetch(uploadUrl)
+        .then(response => {
+          if (!response.ok) throw new Error('Failed to fetch upload file')
+          return response.text()
+        })
+        .then(text => {
+          try {
+            const uploadedState = JSON.parse(text) as AppState
+            setState(uploadedState)
+  
+            const firstProjectName = Object.keys(uploadedState)[0]
+            if (firstProjectName) {
+              setProjectName(firstProjectName)
+  
+              const firstFileName = Object.keys(uploadedState[firstProjectName].files || {})[0]
+              if (firstFileName) {
+                setActiveFile(firstFileName)
+              }
+            }
+  
+            // Analytics: record project state upload from URL
+            gtag.event({ action: 'upload_state_url', category: 'Project', label: uploadUrl })
+          } catch (error) {
+            console.error("Error parsing uploaded state from URL:", error)
+            alert("Invalid JSON file at provided URL.")
+          }
+        })
+        .catch(error => {
+          console.error("Upload fetch error:", error)
+          alert("Failed to load uploaded state file from URL.")
+        })
+    }
+  }, [])
+
   const handleRemoveSearch = useCallback(
     (searchName: string) => {
       // Find the search ID by name
