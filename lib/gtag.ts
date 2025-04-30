@@ -27,7 +27,8 @@ export const event = ({ action, category, label, value }: GTagEvent) => {
 };
 
 // Set a user ID for analytics
-export const setUserId = (userId: string) => {
+// Set a user ID for analytics (accepts null to clear user)
+export const setUserId = (userId: string | null) => {
   window.gtag('set', { user_id: userId });
 };
 

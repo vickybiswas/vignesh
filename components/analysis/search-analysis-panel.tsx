@@ -9,6 +9,7 @@ import { ChevronRight, Search, History, X, RefreshCw } from "lucide-react"
 import { TextOccurrence } from "../text-occurrence"
 import { ProjectContext } from "@/contexts/project-context"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 
 interface SearchAnalysisPanelProps {
   currentSearchResults: Array<{ text: string; start: number; stop: number }>
@@ -45,31 +46,33 @@ export function SearchAnalysisPanel({
 
   return (
     <>
-      <Card className="w-full h-full flex flex-col">
-        <CardHeader>
+      <Card className="w-full h-full flex flex-col p-1">
+        <CardHeader className="p-1">
           <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               <Search className="h-5 w-5" />
               Search Analysis
             </div>
             {onRefreshAllSearches && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefreshAllSearches}
-                title="Refresh searches for all files"
-              >
-                <RefreshCw className="h-4 w-4 mr-1" />
-                Refresh All
-              </Button>
+                      <TooltipProvider>
+                 <Tooltip>
+                 <TooltipTrigger asChild>
+                   <Button variant="ghost" size="icon" onClick={handleRefreshAllSearches}>
+                       <RefreshCw className="h-4 w-4 mr-1" />
+                   </Button>
+                 </TooltipTrigger>
+                 <TooltipContent side="top">Refresh searches for all files</TooltipContent>
+               </Tooltip>
+
+                      </TooltipProvider>
             )}
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex-1 overflow-hidden">
+        <CardContent className="flex-1 overflow-hidden p-1">
           <ScrollArea className="h-full pr-4">
             <div className="space-y-4">
               <Collapsible>
-                <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-lg border bg-card p-4 text-left hover:bg-accent">
+                <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-lg border bg-card p-4 text-left hover:bg-accent p-1">
                   <ChevronRight className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-90" />
                   <Search className="h-4 w-4" />
                   <span className="font-semibold">Current Search</span>

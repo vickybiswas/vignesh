@@ -52,6 +52,7 @@ export function Header() {
       <TooltipProvider>
         <div className="flex justify-between items-center flex-wrap gap-2">
         <div className="flex items-center gap-2">
+          <h2 className="text-2xl font-bold">QDA Project: </h2>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="flex items-center gap-2">
@@ -64,9 +65,11 @@ export function Header() {
                 <DropdownMenuSub key={name}>
                   <DropdownMenuSubTrigger>{name}</DropdownMenuSubTrigger>
                   <DropdownMenuSubContent>
-                    <DropdownMenuItem onClick={() => switchProject(name)}>
-                      Switch to {name}
-                    </DropdownMenuItem>
+                    {name !== projectName && (
+                      <DropdownMenuItem onClick={() => switchProject(name)}>
+                        Switch to {name}
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem
                       onClick={() => {
                         setRenameTarget(name)
@@ -85,16 +88,6 @@ export function Header() {
             </DropdownMenuContent>
           </DropdownMenu>
           <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={() => setShowTabulationView(true)}>
-                <Table className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">Tabulate</TooltipContent>
-          </Tooltip>
-        </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="ghost" size="icon" onClick={() => setIsNewProjectDialogOpen(true)}>
                   <Plus className="h-4 w-4" />
@@ -125,6 +118,16 @@ export function Header() {
               style={{ display: "none" }}
               accept=".json"
             />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={() => setShowTabulationView(true)}>
+                <Table className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Tabulate</TooltipContent>
+          </Tooltip>
+        </div>
+          <div className="flex items-center gap-2 flex-wrap">
             <UserDropdown />
           </div>
       </div>

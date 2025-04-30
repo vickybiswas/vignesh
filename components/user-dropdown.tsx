@@ -12,8 +12,9 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { User, Moon, Sun, Key, X } from "lucide-react"
+import { User, Moon, Sun, Key, X, Info } from "lucide-react"
 import { useTheme } from "next-themes"
+import { setUserId, event as gaEvent } from "@/lib/gtag"
 
 /**
  * UserDropdown renders a Google Sign-In button when not authenticated,
@@ -23,15 +24,30 @@ declare global {
   interface Window { google: any }
 }
 export function UserDropdown() {
-  const [user, setUser] = useState<{ name: string; email: string; picture?: string } | null>(null)
+  const [user, setUser] = useState<{ id: string; name: string; email: string; picture?: string } | null>(null)
   const [apiKey, setApiKey] = useState("")
   const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false)
+  const [isAboutDialogOpen, setIsAboutDialogOpen] = useState(false)
   const { setTheme, theme } = useTheme()
 
   // Load saved API key
   useEffect(() => {
     const stored = localStorage.getItem("openai_api_key")
     if (stored) setApiKey(stored)
+  }, [])
+  
+  // Rehydrate user from localStorage
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("user")
+      if (stored) {
+        const parsedUser = JSON.parse(stored)
+        setUser(parsedUser)
+        setUserId(parsedUser.id)
+      }
+    } catch (e) {
+      console.warn("Failed to parse user from localStorage", e)
+    }
   }, [])
 
   // Google Identity Services init
@@ -41,7 +57,16 @@ export function UserDropdown() {
     function handleCredentialResponse(response: any) {
       try {
         const payload = JSON.parse(atob(response.credential.split('.')[1]))
-        setUser({ name: payload.name, email: payload.email, picture: payload.picture })
+        const newUser = {
+          id: payload.sub,
+          name: payload.name,
+          email: payload.email,
+          picture: payload.picture,
+        }
+        setUser(newUser)
+        window.localStorage.setItem("user", JSON.stringify(newUser))
+        setUserId(newUser.id)
+        gaEvent({ action: "login", category: "Auth", label: newUser.id })
       } catch (e) {
         console.error(e)
       }
@@ -71,7 +96,11 @@ export function UserDropdown() {
 
   const handleSignOut = () => {
     window.google.accounts.id.disableAutoSelect()
+    const userId = user?.id || ""
+    window.localStorage.removeItem("user")
     setUser(null)
+    setUserId(null)
+    gaEvent({ action: "logout", category: "Auth", label: userId })
   }
 
   const handleSaveApiKey = () => {
@@ -106,6 +135,9 @@ export function UserDropdown() {
           <DropdownMenuItem onClick={() => setIsApiKeyDialogOpen(true)}>
             <Key className="mr-2 h-4 w-4" /> Set OpenAI API Key
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setIsAboutDialogOpen(true)}>
+            <Info className="mr-2 h-4 w-4" /> About Vignesh QDA Tool
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={handleSignOut}>
             <X className="mr-2 h-4 w-4" /> Sign Out
@@ -120,6 +152,14 @@ export function UserDropdown() {
           </DialogHeader>
           <Input type="password" placeholder="API key" value={apiKey} onChange={e => setApiKey(e.target.value)} />
           <Button onClick={handleSaveApiKey}>Save</Button>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={isAboutDialogOpen} onOpenChange={setIsAboutDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>About Vignesh QDA Tool</DialogTitle>
+            <DialogDescription>Vignesh QDA Tool is a qualitative data analysis application.</DialogDescription>
+          </DialogHeader>
         </DialogContent>
       </Dialog>
     </>

@@ -32,14 +32,14 @@ export function TagAnalysisPanel({
   activeFile,
 }: TagAnalysisPanelProps) {
   return (
-    <Card className="w-full h-full flex flex-col">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+    <Card className="w-full h-full flex flex-col p-1">
+      <CardHeader className="p-1">
+        <CardTitle className="flex items-center gap-1">
           <Hash className="h-5 w-5" />
           Tag Analysis
         </CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 overflow-hidden">
+      <CardContent className="flex-1 overflow-hidden p-1">
         <ScrollArea className="h-full pr-4">
           <div className="space-y-4">
             {tags.map((tag) => {

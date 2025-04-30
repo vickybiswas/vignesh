@@ -37,18 +37,18 @@ export function SearchAnalysis({
   const [expandedSavedSearch, setExpandedSavedSearch] = useState<string | null>(null)
 
   return (
-    <Card className="w-full">
+    <Card className="w-full p-2">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-1>
           <Search className="h-5 w-5" />
           Search Analysis
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <ScrollArea className="h-[300px] pr-4">
-          <div className="space-y-4">
+      <CardContent className="!px-2 pt-0">
+        <ScrollArea className="h-[300px] pr-2">
+          <div className="space-y-2">
             <Collapsible>
-              <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-lg border bg-card p-4 text-left hover:bg-accent">
+              <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-lg border bg-card p-2 text-left hover:bg-accent">
                 <ChevronRight className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-90" />
                 <Search className="h-4 w-4" />
                 <span className="font-semibold">Current Search</span>
@@ -56,7 +56,7 @@ export function SearchAnalysis({
                   {currentSearchResults.length} {currentSearchResults.length === 1 ? "result" : "results"}
                 </span>
               </CollapsibleTrigger>
-              <CollapsibleContent className="mt-2 space-y-2">
+              <CollapsibleContent className="mt-1 space-y-1">
                 {currentSearchResults.map((result, index) => (
                   <TextOccurrence
                     key={index}
@@ -70,7 +70,7 @@ export function SearchAnalysis({
               </CollapsibleContent>
             </Collapsible>
             <Collapsible>
-              <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-lg border bg-card p-4 text-left hover:bg-accent">
+              <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-lg border bg-card p-2 text-left hover:bg-accent">
                 <ChevronRight className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-90" />
                 <History className="h-4 w-4" />
                 <span className="font-semibold">Saved Searches</span>
@@ -78,11 +78,11 @@ export function SearchAnalysis({
                   {savedSearches.length} {savedSearches.length === 1 ? "search" : "searches"}
                 </span>
               </CollapsibleTrigger>
-              <CollapsibleContent className="mt-2 space-y-2">
+              <CollapsibleContent className="mt-1 space-y-1">
                 {savedSearches.map((search, index) => (
                   <Collapsible key={index}>
                     <CollapsibleTrigger
-                      className={`flex w-full items-center gap-2 rounded-lg border bg-card p-4 text-left hover:bg-accent ${
+                      className={`flex w-full items-center gap-2 rounded-lg border bg-card p-2 text-left hover:bg-accent ${
                         highlightedSearch === search.text ? "bg-green-200" : ""
                       }`}
                       onClick={() => onSelectSearch(search.text)}
@@ -105,7 +105,7 @@ export function SearchAnalysis({
                         <X className="h-4 w-4" />
                       </Button>
                     </CollapsibleTrigger>
-                    <CollapsibleContent className="mt-2 space-y-2">
+                    <CollapsibleContent className="mt-1 space-y-1">
                       {search.occurrences.map((occurrence, idx) => (
                         <TextOccurrence
                           key={idx}
