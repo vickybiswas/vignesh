@@ -50,9 +50,12 @@ export function UserDropdown() {
     }
   }, [])
 
-  // Google Identity Services init
+  // Google Identity Services init (only if not already signed in)
   useEffect(() => {
-    // Baked-in Google OAuth Client ID for static CDN deployment
+    // Skip GSI if a user is already stored
+    if (window.localStorage.getItem("user")) {
+      return
+    }
     const clientId = "1079401176023-eaddv9q2jjkdtt37ou4ekg49lingvrb1.apps.googleusercontent.com"
     function handleCredentialResponse(response: any) {
       try {
@@ -72,13 +75,11 @@ export function UserDropdown() {
       }
     }
     const initializeGSI = () => {
-      // Initialize Google Identity Services and render the button
       window.google.accounts.id.initialize({ client_id: clientId, callback: handleCredentialResponse })
       const container = document.getElementById('googleSignInDiv')
       if (container) {
         window.google.accounts.id.renderButton(container, { theme: 'outline', size: 'large' })
       }
-      // Optionally prompt One Tap
       window.google.accounts.id.prompt()
     }
     if (window.google?.accounts?.id) {
