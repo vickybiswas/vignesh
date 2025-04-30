@@ -1394,6 +1394,8 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
   const handleSearch = useCallback(
     (event: React.FormEvent) => {
       event.preventDefault()
+      // Analytics: record search submission
+      gtag.event({ action: 'submit_search', category: 'Search', label: searchTerm })
       // Perform search with current search term
       performSearch(searchTerm)
     },

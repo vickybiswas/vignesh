@@ -1,11 +1,13 @@
-import type { Metadata } from 'next'
+"use client"
+
+// import type { Metadata } from 'next'
 import './globals.css'
 
-export const metadata: Metadata = {
-  title: 'Vighesh - QDA Tooltip',
-  description: 'Created with v0',
-  generator: 'v0.dev',
-}
+// export const metadata: Metadata = {
+//   title: 'Vighesh - QDA Tooltip',
+//   description: 'Created with v0',
+//   generator: 'v0.dev',
+// }
 
 import Script from 'next/script'
 import { usePathname } from 'next/navigation'

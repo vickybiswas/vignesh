@@ -1,5 +1,5 @@
 // Google Analytics helper functions
-export const GA_MEASUREMENT_ID = 'G-XXXXXXXXXX'; // TODO: replace with your GA4 Measurement ID
+export const GA_MEASUREMENT_ID = 'G-42CGCXP8QL'; 
 
 declare global {
   interface Window { gtag: (...args: any[]) => void; }
