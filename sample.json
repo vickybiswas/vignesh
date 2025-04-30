@@ -1,0 +1,65 @@
+{
+  "Text Analysis Project": {
+    "files": {
+      "sample.txt": {
+        "content": "This is a sample text. You can right-click on any part of this text to add tags to it, including overlapping tags.",
+        "occurrences": [
+          {
+            "id": "tag-aa-1746044896105",
+            "start": 0,
+            "end": 4,
+            "text": "This"
+          },
+          {
+            "id": "tag-bb-1746044905052",
+            "start": 23,
+            "end": 26,
+            "text": "You"
+          },
+          {
+            "id": "tag-bb-1746044905052",
+            "start": 109,
+            "end": 113,
+            "text": "tags"
+          },
+          {
+            "id": "tag-aa-1746044896105",
+            "start": 17,
+            "end": 21,
+            "text": "text"
+          },
+          {
+            "id": "search-this-1746046907946",
+            "text": "This",
+            "start": 0,
+            "end": 4
+          },
+          {
+            "id": "search-this-1746046907946",
+            "text": "this",
+            "start": 58,
+            "end": 62
+          }
+        ]
+      }
+    },
+    "marks": {
+      "tag-aa-1746044896105": {
+        "color": "hsl(127, 100%, 80%)",
+        "type": "Tag",
+        "name": "aa"
+      },
+      "tag-bb-1746044905052": {
+        "color": "hsl(46, 100%, 80%)",
+        "type": "Tag",
+        "name": "bb"
+      },
+      "search-this-1746046907946": {
+        "color": "hsl(340, 100%, 80%)",
+        "type": "Search",
+        "name": "this"
+      }
+    },
+    "groups": {}
+  }
+}
