@@ -43,9 +43,14 @@ const steps: WalkthroughStep[] = [
     position: 'left',
   },
   {
-    title: "Tabulation and Synonyms",
-    description: "Click the table icon to view tabulated reports and use the synonyms popup to manage synonyms.",
+    title: "Tabulation",
+    description: "Click the table icon to view tabulated reports.",
     selector: "#tabulate-button",
+  },
+  {
+    title: "Synonyms",
+    description: "Click the synonyms icon to fetch synonyms for your search term.",
+    selector: "#synonyms-button",
   },
 ]
 

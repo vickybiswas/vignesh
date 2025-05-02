@@ -113,6 +113,7 @@ export function ContentArea() {
           <Save className="h-4 w-4" />
         </Button>
         <Button
+          id="synonyms-button"
           type="button"
           variant="ghost"
           size="icon"
