@@ -17,39 +17,39 @@ interface WalkthroughStep {
 
 const steps: WalkthroughStep[] = [
   {
-    title: "Welcome to Vighesh QDA Tool",
+    title: "Welcome to Vignesh QDA Tool",
     description: "This tour will walk you through the main features. Click Next to continue or Skip to exit the tour.",
   },
   {
-    title: "Project Management",
-    description: "Use the header to create, switch, download, or upload projects.",
+    title: "Research Projects",
+    description: "The header helps you to handle multiple projects. Create, switch, download, or upload projects as you please. Also login to your Google account to set preferences and save your work(coming soon).",
     selector: "#header",
   },
   {
     title: "Files Sidebar",
-    description: "In the left panel, add and manage files. Select a file to view and edit its content.",
+    description: "In the left panel, add and manage conversation, transcripts, whatever you wish to analyze. You can drag files from your PC and drop it here as well. Select a file to view and edit its content.",
     selector: "#files-sidebar",
     position: 'right',
   },
   {
     title: "Content Area",
-    description: "View and edit your text here. Right-click to add tags or search for terms.",
+    description: "View and code your files here. Right-click to add tags or search for terms. To edit triple click.",
     selector: "#content-area",
   },
   {
-    title: "Analysis Sidebar",
-    description: "Use the right panel to analyze your data by tags, searches, and groups.",
+    title: "Coding Sidebar",
+    description: "Use the right panel to code your data by tags, searches, and groups.",
     selector: "#analysis-sidebar",
     position: 'left',
   },
   {
     title: "Tabulation",
-    description: "Click the table icon to view tabulated reports.",
+    description: "Find intersections between tags, searches or groups. View tabulated reports, click on intersection counts to get a list of occurrences. Double click occurrence to go to the file and location.",
     selector: "#tabulate-button",
   },
   {
     title: "Synonyms",
-    description: "Click the synonyms icon to fetch synonyms for your search term.",
+    description: "Add your OpenAPI Key to fetch synonyms for your search term and save them for analysis.",
     selector: "#synonyms-button",
   },
 ]

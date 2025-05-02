@@ -51,7 +51,12 @@ export function SplashModal({ onClose }: SplashModalProps) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="flex justify-center">
-            <Image src="/vqdalogo.png" alt="Vighesh QDA Logo" width={100} height={100} />
+            <Image
+              src={`${process.env.NEXT_PUBLIC_BASE_PATH}/vqdalogo.png`}
+              alt="Vighesh QDA Logo"
+              width={100}
+              height={100}
+            />
           </DialogTitle>
           <DialogTitle className="text-center">Vighesh QDA Tool</DialogTitle>
           <DialogDescription className="text-center">
