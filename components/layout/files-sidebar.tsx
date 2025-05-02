@@ -87,7 +87,7 @@ export function FilesSidebar() {
   const files = currentProject?.files || {}
 
   return (
-    <div
+    <div id="files-sidebar"
       className={
         `border-r p-2 md:p-4 h-full flex flex-col overflow-auto min-h-0 ${isDragging ? 'bg-blue-50 border-dashed border-blue-300' : ''}`
       }

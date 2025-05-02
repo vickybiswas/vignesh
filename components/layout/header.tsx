@@ -48,7 +48,7 @@ export function Header() {
   }
 
   return (
-    <div className="border-b p-4">
+    <div id="header" className="border-b p-4">
       <TooltipProvider>
         <div className="flex justify-between items-center flex-wrap gap-2">
         <div className="flex items-center gap-2">
@@ -120,7 +120,7 @@ export function Header() {
             />
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={() => setShowTabulationView(true)}>
+              <Button id="tabulate-button" variant="ghost" size="icon" onClick={() => setShowTabulationView(true)}>
                 <Table className="h-4 w-4" />
               </Button>
             </TooltipTrigger>

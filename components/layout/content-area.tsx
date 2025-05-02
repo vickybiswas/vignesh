@@ -52,7 +52,7 @@ export function ContentArea() {
   const tagLabels = uniqueTagLabels || []
 
   return (
-    <div className="flex-grow flex flex-col p-2 md:p-4 overflow-hidden">
+    <div id="content-area" className="flex-grow flex flex-col p-2 md:p-4 overflow-hidden">
       <div className="mb-4 flex flex-col md:flex-row gap-2">
         <Select value={selectedTagFilter} onValueChange={handleTagFilterChange}>
           <SelectTrigger className="w-full md:w-[180px]">

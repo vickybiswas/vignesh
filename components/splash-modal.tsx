@@ -7,24 +7,28 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 
 const SPLASH_STORAGE_KEY = "splashDoNotShow"
+const WALKTHROUGH_STORAGE_KEY = "walkthroughDoNotShow"
 
-export function SplashModal() {
-  const [open, setOpen] = useState(false)
+interface SplashModalProps {
+  onClose?: () => void
+}
+export function SplashModal({ onClose }: SplashModalProps) {
+  // Splash always opens initially
+  const [open, setOpen] = useState(true)
   const [doNotShow, setDoNotShow] = useState(false)
+  const [skipWalkthrough, setSkipWalkthrough] = useState(false)
 
-  useEffect(() => {
-    // Show modal on first load unless user opted out
-    const skip = window.localStorage.getItem(SPLASH_STORAGE_KEY)
-    if (!skip) {
-      setOpen(true)
-    }
-  }, [])
+  // No mount logic needed: open is initially true
 
   const handleClose = () => {
     setOpen(false)
     if (doNotShow) {
       window.localStorage.setItem(SPLASH_STORAGE_KEY, "true")
     }
+    if (skipWalkthrough) {
+      window.localStorage.setItem(WALKTHROUGH_STORAGE_KEY, "true")
+    }
+    onClose?.()
   }
 
   return (
@@ -56,7 +60,18 @@ export function SplashModal() {
               className="mr-2"
             />
             <label htmlFor="splash-do-not-show" className="select-none">
-              Do not show again
+              Do not show splash again
+            </label>
+          </div>
+          <div className="flex items-center">
+            <Checkbox
+              id="splash-walkthrough-do-not-show"
+              checked={skipWalkthrough}
+              onCheckedChange={(checked) => setSkipWalkthrough(!!checked)}
+              className="mr-2"
+            />
+            <label htmlFor="splash-walkthrough-do-not-show" className="select-none">
+              Do not show walkthrough again
             </label>
           </div>
         </div>

@@ -54,7 +54,7 @@ export function AnalysisSidebar() {
   }, [tagSplitRatio])
 
   return (
-    <div className="border-l p-2 md:p-4 h-full flex flex-col">
+    <div id="analysis-sidebar" className="border-l p-2 md:p-4 h-full flex flex-col">
       <Tabs defaultValue="analysis" className="flex flex-col h-full">
         <TabsList className="w-full mb-4">
           <TabsTrigger value="analysis" className="flex-1">

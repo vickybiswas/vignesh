@@ -6,6 +6,81 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Walkthrough styling */
+@layer utilities {
+  /* Cartoon-style highlight around target element */
+  .walkthrough-highlight {
+    position: relative;
+    z-index: 1000 !important;
+    /* bright yellow inner, black outer comic outline */
+    box-shadow: 0 0 0 4px #ff0, 0 0 0 8px #000 !important;
+  }
+
+  /* Callout bubble with arrow */
+  .walkthrough-callout {
+    position: fixed !important;
+    background: #ffeb3b !important;
+    color: #000 !important;
+    border: 3px solid #000 !important;
+    border-radius: 8px !important;
+    padding: 12px !important;
+    z-index: 10001 !important;
+    width: 220px !important;
+    font-family: "Comic Sans MS", cursive, sans-serif;
+    font-size: 0.9rem;
+    line-height: 1.2;
+  }
+  .walkthrough-callout::after {
+    /* default: arrow pointing down from bottom of bubble */
+    content: "";
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-left: 12px solid transparent;
+    border-right: 12px solid transparent;
+    border-top: 12px solid #ffeb3b;
+    bottom: -12px;
+    left: 20px;
+  }
+  .walkthrough-callout.arrow-up::after {
+    /* arrow pointing up from top of bubble */
+    content: "" !important;
+    position: absolute !important;
+    border-top: none !important;
+    border-bottom: 12px solid #ffeb3b !important;
+    top: -12px !important;
+    bottom: auto !important;
+    left: 20px !important;
+    right: auto !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+  .walkthrough-callout.arrow-left::after {
+    /* arrow pointing left from left side of bubble */
+    content: "";
+    position: absolute;
+    top: calc(50% - 6px);
+    left: -12px;
+    width: 0;
+    height: 0;
+    border-top: 12px solid transparent;
+    border-bottom: 12px solid transparent;
+    border-right: 12px solid #ffeb3b;
+  }
+  .walkthrough-callout.arrow-right::after {
+    /* arrow pointing right from right side of bubble */
+    content: "";
+    position: absolute;
+    top: calc(50% - 6px);
+    right: -12px;
+    width: 0;
+    height: 0;
+    border-top: 12px solid transparent;
+    border-bottom: 12px solid transparent;
+    border-left: 12px solid #ffeb3b;
+  }
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

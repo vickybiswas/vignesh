@@ -8,34 +8,36 @@ import { useEffect } from 'react'
 import * as gtag from '@/lib/gtag'
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+  const pathname = usePathname()
   useEffect(() => {
     if (typeof window.gtag !== 'undefined') {
-      gtag.pageview(pathname);
+      gtag.pageview(pathname)
     }
-  }, [pathname]);
+  }, [pathname])
+
   // Global error tracking
   useEffect(() => {
     const handleError = (e: ErrorEvent) => {
-      gtag.reportError({ description: `${e.message} at ${e.filename}:${e.lineno}:${e.colno}` });
-    };
+      gtag.reportError({ description: `${e.message} at ${e.filename}:${e.lineno}:${e.colno}` })
+    }
     const handleRejection = (e: PromiseRejectionEvent) => {
-      const msg = e.reason?.message || String(e.reason);
-      gtag.reportError({ description: `UnhandledRejection: ${msg}` });
-    };
-    window.addEventListener('error', handleError);
-    window.addEventListener('unhandledrejection', handleRejection);
+      const msg = e.reason?.message || String(e.reason)
+      gtag.reportError({ description: `UnhandledRejection: ${msg}` })
+    }
+    window.addEventListener('error', handleError)
+    window.addEventListener('unhandledrejection', handleRejection)
     return () => {
-      window.removeEventListener('error', handleError);
-      window.removeEventListener('unhandledrejection', handleRejection);
-    };
-  }, []);
+      window.removeEventListener('error', handleError)
+      window.removeEventListener('unhandledrejection', handleRejection)
+    }
+  }, [])
+
   return (
     <html lang="en">
       <head>
         {/* Page metadata */}
-        <title>Vignesh QDA Tool</title>
-        <meta name="description" content="Vignesh QDA Tool - qualitative data analysis application" />
+        <title>Vighesh QDA Tool</title>
+        <meta name="description" content="Vighesh QDA Tool - qualitative data analysis application" />
         <link rel="icon" href="/favicon.ico" />
         {/* Google Analytics */}
         <Script
