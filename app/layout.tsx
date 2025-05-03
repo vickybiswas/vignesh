@@ -1,8 +1,9 @@
 "use client"
 
 import './globals.css'
-// Prefix for static assets when running under subdirectory
-const basePath = process.env.NEXT_PUBLIC_BASE_PATH || ''
+// Application base path for static assets
+const isProd = process.env.NODE_ENV === 'production'
+const basePath = isProd ? '/vignesh' : ''
 
 import Script from 'next/script'
 import { usePathname } from 'next/navigation'
