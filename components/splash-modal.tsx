@@ -84,32 +84,30 @@ export function SplashModal({ onClose }: SplashModalProps) {
           <Button onClick={handleClose}>Close</Button>
         </DialogFooter>
 
-        {hasVisited && (
         <>
-            <div className="flex items-center mt-4">
+          <div className="flex items-center mt-4">
             <Checkbox
-                id="splash-do-not-show"
-                checked={doNotShow}
-                onCheckedChange={(checked) => setDoNotShow(!!checked)}
-                className="mr-2"
+              id="splash-do-not-show"
+              checked={doNotShow}
+              onCheckedChange={(checked) => setDoNotShow(!!checked)}
+              className="mr-2"
             />
             <label htmlFor="splash-do-not-show" className="select-none">
-                Do not show splash again
+              Do not show splash again
             </label>
-            </div>
-            <div className="flex items-center">
+          </div>
+          <div className="flex items-center">
             <Checkbox
-                id="splash-walkthrough-do-not-show"
-                checked={skipWalkthrough}
-                onCheckedChange={(checked) => setSkipWalkthrough(!!checked)}
-                className="mr-2"
+              id="splash-walkthrough-do-not-show"
+              checked={skipWalkthrough}
+              onCheckedChange={(checked) => setSkipWalkthrough(!!checked)}
+              className="mr-2"
             />
             <label htmlFor="splash-walkthrough-do-not-show" className="select-none">
-                Do not show walkthrough again
+              Do not show walkthrough again
             </label>
-            </div>
+          </div>
         </>
-        )}
         </div>
       </DialogContent>
     </Dialog>

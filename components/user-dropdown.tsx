@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input"
 import { User, Moon, Sun, Key, X, Info } from "lucide-react"
 import { useTheme } from "next-themes"
 import { setUserId, event as gaEvent } from "@/lib/gtag"
+import { SplashModal } from "@/components/splash-modal"
 
 /**
  * UserDropdown renders a Google Sign-In button when not authenticated,
@@ -25,9 +26,9 @@ declare global {
 }
 export function UserDropdown() {
   const [user, setUser] = useState<{ id: string; name: string; email: string; picture?: string } | null>(null)
+  const [isSplashModalOpen, setIsSplashModalOpen] = useState(false)
   const [apiKey, setApiKey] = useState("")
   const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false)
-  const [isAboutDialogOpen, setIsAboutDialogOpen] = useState(false)
   const { setTheme, theme } = useTheme()
 
   // Load saved API key
@@ -110,18 +111,16 @@ export function UserDropdown() {
   }
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark')
 
-  // If not signed in yet, render the Google Sign-In button container
-  if (!user) {
-    // Container for Google Sign-In button
-    return <div id="googleSignInDiv" className="inline-block" />
-  }
+  // Always render Google Sign-In container for authentication and allow dropdown access
+  const googleSignInDiv = <div id="googleSignInDiv" className="inline-block" />
 
   return (
     <>
+      {googleSignInDiv}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="w-8 h-8 rounded-full p-0 overflow-hidden">
-            {user.picture ? (
+            {user?.picture ? (
               <img src={user.picture} alt={user.name} className="h-full w-full rounded-full object-cover" />
             ) : (
               <User className="h-6 w-6" />
@@ -129,14 +128,14 @@ export function UserDropdown() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuLabel>{user.name}</DropdownMenuLabel>
+          <DropdownMenuLabel>{user?.name ?? "Guest"}</DropdownMenuLabel>
           <DropdownMenuItem onClick={toggleTheme}>
             {theme === 'dark' ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />} Toggle Theme
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setIsApiKeyDialogOpen(true)}>
             <Key className="mr-2 h-4 w-4" /> Set OpenAI API Key
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setIsAboutDialogOpen(true)}>
+          <DropdownMenuItem onClick={() => setIsSplashModalOpen(true)}>
             <Info className="mr-2 h-4 w-4" /> About Vignesh QDA Tool
           </DropdownMenuItem>
           <DropdownMenuSeparator />
@@ -149,20 +148,13 @@ export function UserDropdown() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Set OpenAI API Key</DialogTitle>
-            <DialogDescription>Enter your OpenAI API key to enable AI features.</DialogDescription>
+            <DialogDescription>Enter your OpenAI API key to enable AI features (It will be saved in your localstorage and never hit our servers).</DialogDescription>
           </DialogHeader>
           <Input type="password" placeholder="API key" value={apiKey} onChange={e => setApiKey(e.target.value)} />
           <Button onClick={handleSaveApiKey}>Save</Button>
         </DialogContent>
       </Dialog>
-      <Dialog open={isAboutDialogOpen} onOpenChange={setIsAboutDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>About Vignesh QDA Tool</DialogTitle>
-            <DialogDescription>Vignesh QDA Tool is a qualitative data analysis application.</DialogDescription>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
+      {isSplashModalOpen && <SplashModal onClose={() => setIsSplashModalOpen(false)} />}
     </>
   )
 }
