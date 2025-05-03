@@ -38,7 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <head>
         {/* Page metadata */}
-        <title>Vigesh QDA Tool</title>
+        <title>Vignesh QDA Tool</title>
         <meta name="description" content="Vignesh QDA Tool - The free qualitative data analysis application" />
         <link rel="icon" href={`${basePath}/favicon.ico`} />
         {/* Google Analytics */}

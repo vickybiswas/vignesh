@@ -69,11 +69,11 @@ export function SplashModal({ onClose }: SplashModalProps) {
         <div className="mt-4 space-y-2">
           <p className="font-semibold">Creator:</p>
           <ul className="list-disc list-inside">
-            <li><Link className="bg-blue-500 text-white hover:bg-blue-600 text-decoration-none px-4 py-2 rounded" href="https://www.linkedin.com/in/vickybiswas" >Vicky Biswas</Link></li>
+            <li><Link target="_blank" className="bg-blue-500 text-white hover:bg-blue-600 text-decoration-none px-4 py-2 rounded" href="https://www.linkedin.com/in/vickybiswas" >Vicky Biswas</Link></li>
           </ul>
           <p className="font-semibold">Guidance:</p>
           <ul className="list-disc list-inside">
-            <li><Link className="bg-blue-500 text-white hover:bg-blue-600 text-decoration-none px-4 py-2 rounded" href="https://web.iitd.ac.in/~vignes/">Professor Vignesh</Link> - IIT Delhi - The amount of patience and trust he put in a person he did not know is unsurpassed and has led to this product.</li>
+            <li><Link target="_blank" className="bg-blue-500 text-white hover:bg-blue-600 text-decoration-none px-4 py-2 rounded" href="https://web.iitd.ac.in/~vignes/">Professor Vignesh</Link> - IIT Delhi - The amount of patience and trust he put in a person he did not know is unsurpassed and has led to this product.</li>
           </ul>
           {hasVisited && (
             <>
