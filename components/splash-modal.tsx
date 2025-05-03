@@ -7,6 +7,7 @@ import Image from "next/image"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import Link from "next/link"
 
 const SPLASH_STORAGE_KEY = "splashDoNotShow"
 const WALKTHROUGH_STORAGE_KEY = "walkthroughDoNotShow"
@@ -55,12 +56,12 @@ export function SplashModal({ onClose }: SplashModalProps) {
           <DialogTitle className="flex justify-center">
             <Image
               src={`${basePath}/vqdalogo.png`}
-              alt="Vighesh QDA Logo"
+              alt="Vigesh QDA Logo"
               width={100}
               height={100}
             />
           </DialogTitle>
-          <DialogTitle className="text-center">Vighesh QDA Tool</DialogTitle>
+          <DialogTitle className="text-center">Vignesh QDA Tool</DialogTitle>
           <DialogDescription className="text-center">
             A lightweight Qualitative Data Analysis (QDA) tool to help researchers analyze and manage qualitative data, such as interview transcripts, focus group discussions, and field notes. Allows organizing, coding (Search, Tag, and Group), and visualizing qualitative data, helping researchers identify patterns and themes. 
           </DialogDescription>
@@ -68,11 +69,11 @@ export function SplashModal({ onClose }: SplashModalProps) {
         <div className="mt-4 space-y-2">
           <p className="font-semibold">Creator:</p>
           <ul className="list-disc list-inside">
-            <li>Vicky Biswas</li>
+            <li><Link className="bg-blue-500 text-white hover:bg-blue-600 text-decoration-none px-4 py-2 rounded" href="https://www.linkedin.com/in/vickybiswas" >Vicky Biswas</Link></li>
           </ul>
           <p className="font-semibold">Guidance:</p>
           <ul className="list-disc list-inside">
-            <li>Professor Vignesh - IIT Delhi</li>
+            <li><Link className="bg-blue-500 text-white hover:bg-blue-600 text-decoration-none px-4 py-2 rounded" href="https://web.iitd.ac.in/~vignes/">Professor Vignesh</Link> - IIT Delhi - The amount of patience and trust he put in a person he did not know is unsurpassed and has led to this product.</li>
           </ul>
           {hasVisited && (
             <>
