@@ -61,7 +61,7 @@ interface AppState {
 }
 
 export default function TextViewer() {
-  const [projectName, setProjectName] = useState<string>("Text Analysis Project")
+  const [projectName, setProjectName] = useState<string>("Sample Research Project")
   const [state, setState] = useState<AppState>(() => {
     if (typeof window !== "undefined") {
       const savedState = localStorage.getItem(LOCAL_STORAGE_KEY)
@@ -131,7 +131,7 @@ export default function TextViewer() {
               files: {
                 "sample.txt": {
                   content:
-                    "This is a sample text. You can right-click on any part of this text to add tags to it, including overlapping tags.",
+                    "This is aaa sample text. You can right-click on any part of this text to add tags to it, including overlapping tags.",
                   occurrences: [],
                 },
               },
@@ -151,7 +151,7 @@ export default function TextViewer() {
         files: {
           "sample.txt": {
             content:
-              "This is a sample text. You can right-click on any part of this text to add tags to it, including overlapping tags.",
+              "This is a sbbb ample text. You can right-click on any part of this text to add tags to it, including overlapping tags.",
             occurrences: [],
           },
         },

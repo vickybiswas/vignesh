@@ -33,7 +33,7 @@ const steps: WalkthroughStep[] = [
   },
   {
     title: "Content Area",
-    description: "View and code your files here. Right-click to add tags or search for terms. To edit triple click.",
+    description: "View and code your files here. Right-click to add tags or search for terms and save them for analysis. To edit triple click.",
     selector: "#content-area",
   },
   {

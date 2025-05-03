@@ -1,6 +1,8 @@
 "use client"
 
 import './globals.css'
+// Prefix for static assets when running under subdirectory
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || ''
 
 import Script from 'next/script'
 import { usePathname } from 'next/navigation'
@@ -38,7 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Page metadata */}
         <title>Vighesh QDA Tool</title>
         <meta name="description" content="Vighesh QDA Tool - qualitative data analysis application" />
-        <link rel="icon" href={`${process.env.NEXT_PUBLIC_BASE_PATH}/favicon.ico`} />
+        <link rel="icon" href={`${basePath}/favicon.ico`} />
         {/* Google Analytics */}
         <Script
           src={`https://www.googletagmanager.com/gtag/js?id=${gtag.GA_MEASUREMENT_ID}`}

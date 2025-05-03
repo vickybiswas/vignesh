@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
+// Prefix for static assets when running under subdirectory
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || ''
 import Image from "next/image"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -52,7 +54,7 @@ export function SplashModal({ onClose }: SplashModalProps) {
         <DialogHeader>
           <DialogTitle className="flex justify-center">
             <Image
-              src={`${process.env.NEXT_PUBLIC_BASE_PATH}/vqdalogo.png`}
+              src={`${basePath}/vqdalogo.png`}
               alt="Vighesh QDA Logo"
               width={100}
               height={100}

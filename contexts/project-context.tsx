@@ -6,6 +6,8 @@ import { createContext, useState, useRef, useCallback, useMemo, useEffect, type 
 import { useToast } from "@/hooks/use-toast"
 import { generatePastelColor } from "@/utils/colors"
 import * as gtag from "@/lib/gtag"
+// Sample initial state
+import sampleState from './sample.json'
 
 const LOCAL_STORAGE_KEY = "textViewerState"
 
@@ -167,7 +169,7 @@ interface ProjectProviderProps {
 }
 
 export function ProjectProvider({ children }: ProjectProviderProps) {
-  const [projectName, setProjectName] = useState<string>("Text Analysis Project")
+  const [projectName, setProjectName] = useState<string>("Sample Research Project")
   const [state, setState] = useState<AppState>(() => {
     if (typeof window !== "undefined") {
       try {
@@ -261,20 +263,8 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
       }
     }
 
-    // Default state
-    return {
-      "Text Analysis Project": {
-        files: {
-          "sample.txt": {
-            content:
-              "This is a sample text. You can right-click on any part of this text to add tags to it, including overlapping tags.",
-            occurrences: [],
-          },
-        },
-        marks: {},
-        groups: {},
-      },
-    }
+    // Default state: use sampleState
+    return sampleState as AppState
   })
 
   const [activeFile, setActiveFile] = useState<string>(() => {
@@ -1447,21 +1437,20 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
 
       setState((prevState) => {
         const newState = { ...prevState }
-        newState[name] = {
-          files: {
-            "sample.txt": {
-              content: "This is a sample text for your new project.",
-              occurrences: [],
-            },
-          },
-          marks: {},
-          groups: {},
-        }
+        // Use sampleState template for new project
+        const templateKey = Object.keys(sampleState)[0]
+        const templateProject = sampleState[templateKey]
+        // Deep clone to avoid mutation
+        const newProject = JSON.parse(JSON.stringify(templateProject))
+        newState[name] = newProject
         return newState
       })
 
       setProjectName(name)
-      setActiveFile("sample.txt")
+      // Initialize active file to first file in the template
+      const templateKey = Object.keys(sampleState)[0]
+      const fileNames = Object.keys(sampleState[templateKey].files)
+      setActiveFile(fileNames[0] || "")
       // Analytics: record project creation
       gtag.event({ action: 'create_project', category: 'Project', label: name })
     },
