@@ -1,6 +1,7 @@
 "use client"
 
 import './globals.css'
+import { ThemeProvider } from '@/components/theme-provider'
 // Application base path for static assets
 const isProd = process.env.NODE_ENV === 'production'
 const basePath = isProd ? '/vignesh' : ''
@@ -54,7 +55,11 @@ gtag('js', new Date());
 gtag('config', '${gtag.GA_MEASUREMENT_ID}', { page_path: window.location.pathname });`}
         </Script>
       </head>
-      <body>{children}</body>
+      <body>
+        <ThemeProvider attribute="class" defaultTheme="system">
+          {children}
+        </ThemeProvider>
+      </body>
     </html>
   )
 }

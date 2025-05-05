@@ -55,7 +55,7 @@ export function UserDropdown() {
   useEffect(() => {
     // Skip GSI if a user is already stored
     if (window.localStorage.getItem("user")) {
-      return
+        return
     }
     const clientId = "1079401176023-eaddv9q2jjkdtt37ou4ekg49lingvrb1.apps.googleusercontent.com"
     function handleCredentialResponse(response: any) {
@@ -97,12 +97,20 @@ export function UserDropdown() {
   }, [])
 
   const handleSignOut = () => {
-    window.google.accounts.id.disableAutoSelect()
+    // Disable Google auto sign-in if available
+    window.google?.accounts?.id.disableAutoSelect?.()
     const userId = user?.id || ""
+    // Clear user and analytics
     window.localStorage.removeItem("user")
     setUser(null)
     setUserId(null)
     gaEvent({ action: "logout", category: "Auth", label: userId })
+    // Re-render Google Sign-In button
+    const container = document.getElementById('googleSignInDiv')
+    if (window.google?.accounts?.id && container) {
+      window.google.accounts.id.renderButton(container, { theme: 'outline', size: 'large' })
+      window.google.accounts.id.prompt()
+    }
   }
 
   const handleSaveApiKey = () => {
@@ -116,7 +124,7 @@ export function UserDropdown() {
 
   return (
     <>
-      {googleSignInDiv}
+      {!user?.picture ? googleSignInDiv: ''}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="w-8 h-8 rounded-full p-0 overflow-hidden">
