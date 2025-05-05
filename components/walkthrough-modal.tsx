@@ -55,13 +55,19 @@ const steps: WalkthroughStep[] = [
 ]
 
 export function WalkthroughModal() {
-  // Walkthrough opens by default
+  // Walkthrough opens by default unless user opted to skip
   const [open, setOpen] = useState(true)
   const [currentStep, setCurrentStep] = useState(0)
   const prevElRef = React.useRef<HTMLElement | null>(null)
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null)
 
-  // No mount logic needed: open is initially true
+  // On mount, check if walkthrough skip flag is set in localStorage
+  useEffect(() => {
+    const skip = window.localStorage.getItem(WALKTHROUGH_STORAGE_KEY) === "true"
+    if (skip) {
+      setOpen(false)
+    }
+  }, [])
 
   // Highlight target element for each step
   useEffect(() => {

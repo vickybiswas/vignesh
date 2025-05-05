@@ -154,7 +154,9 @@ export function UserDropdown() {
           <Button onClick={handleSaveApiKey}>Save</Button>
         </DialogContent>
       </Dialog>
-      {isSplashModalOpen && <SplashModal onClose={() => setIsSplashModalOpen(false)} />}
+      {isSplashModalOpen && (
+        <SplashModal onClose={() => setIsSplashModalOpen(false)} forceOpen />
+      )}
     </>
   )
 }

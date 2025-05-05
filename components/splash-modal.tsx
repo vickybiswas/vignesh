@@ -12,43 +12,45 @@ import { Card } from "./ui/card"
 const isProd = process.env.NODE_ENV === 'production'
 const basePath = isProd ? '/vignesh' : ''
 
-
 const SPLASH_STORAGE_KEY = "splashDoNotShow"
 const WALKTHROUGH_STORAGE_KEY = "walkthroughDoNotShow"
 const SPLASH_VISITED_KEY = "splashVisited"
 
 interface SplashModalProps {
+  /** Called when the modal closes */
   onClose?: () => void
+  /** If true, always open the modal ignoring any stored skip flags */
+  forceOpen?: boolean
 }
-export function SplashModal({ onClose }: SplashModalProps) {
+export function SplashModal({ onClose, forceOpen = false }: SplashModalProps) {
   const [open, setOpen] = useState(false)
   const [doNotShow, setDoNotShow] = useState(false)
   const [skipWalkthrough, setSkipWalkthrough] = useState(false)
   const [hasVisited, setHasVisited] = useState(false)
 
   useEffect(() => {
-    // Determine if splash should open (dev always shows, else respect skip)
-    const skip = window.localStorage.getItem(SPLASH_STORAGE_KEY)
-    const isDev = process.env.NODE_ENV !== 'production'
-    if (isDev || !skip) {
+    // Initialize checkbox states from localStorage
+    const storedSplashSkip = window.localStorage.getItem(SPLASH_STORAGE_KEY) == "true"
+    setDoNotShow(Boolean(storedSplashSkip))
+    const storedWalkthroughSkip = window.localStorage.getItem(WALKTHROUGH_STORAGE_KEY) == "true"
+    setSkipWalkthrough(Boolean(storedWalkthroughSkip))
+    const visited = window.localStorage.getItem(SPLASH_VISITED_KEY) == "true"
+    setHasVisited(Boolean(visited))
+    console.log("1 >>>", storedSplashSkip, storedWalkthroughSkip, visited, doNotShow, skipWalkthrough)
+
+    // Determine if splash should open: forced, or if not skipped
+    console.log("forceOpen", forceOpen)
+    if (forceOpen || !Boolean(storedSplashSkip)) {
       setOpen(true)
     } else {
       onClose?.()
     }
-    // Track first-time visit
-    const visited = window.localStorage.getItem(SPLASH_VISITED_KEY)
-    setHasVisited(Boolean(visited))
   }, [])
 
   const handleClose = () => {
     setOpen(false)
-    if (doNotShow) {
-      window.localStorage.setItem(SPLASH_STORAGE_KEY, "true")
-    }
-    if (skipWalkthrough) {
-      window.localStorage.setItem(WALKTHROUGH_STORAGE_KEY, "true")
-    }
-    // Mark that user has seen the splash at least once
+    window.localStorage.setItem(SPLASH_STORAGE_KEY, doNotShow)
+    window.localStorage.setItem(WALKTHROUGH_STORAGE_KEY, skipWalkthrough)
     window.localStorage.setItem(SPLASH_VISITED_KEY, "true")
     onClose?.()
   }
@@ -83,7 +85,7 @@ export function SplashModal({ onClose }: SplashModalProps) {
         <DialogFooter className="float-right pt-4">
           <Button onClick={handleClose}>Close</Button>
         </DialogFooter>
-
+        {hasVisited && (
         <>
           <div className="flex items-center mt-4">
             <Checkbox
@@ -108,6 +110,7 @@ export function SplashModal({ onClose }: SplashModalProps) {
             </label>
           </div>
         </>
+        )}
         </div>
       </DialogContent>
     </Dialog>
