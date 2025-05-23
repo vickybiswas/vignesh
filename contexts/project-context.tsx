@@ -157,6 +157,10 @@ interface ProjectContextType {
   removeMarkFromGroup: (groupId: string, markId: string) => void
   deleteGroup: (groupId: string) => void
   updateGroupMarks: (groupId: string, markIds: string[]) => void
+  /**
+   * Save all occurrences in a group as a new tag
+   */
+  saveGroupAsTag: (groupId: string, tagName: string) => void
   refreshAllSearches: () => void
   getMarksByGroup: (groupId: string) => Array<{ id: string; name: string; type: "Tag" | "Search"; color: string }>
   getAllMarksForTabulation: () => Array<{ id: string; name: string; prefix: string; color: string }>
@@ -1630,6 +1634,52 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
     [projectName],
   )
 
+  const saveGroupAsTag = useCallback(
+    (groupId: string, tagName: string) => {
+      setState((prevState) => {
+        const newState = { ...prevState }
+        const newProject = { ...newState[projectName] }
+        const group = newProject.groups?.[groupId]
+        if (!group || !tagName.trim()) return prevState
+
+        const label = tagName.trim()
+        // Prevent duplicate tag names
+        if (
+          Object.values(newProject.marks || {}).some(
+            (mark) => mark.type === "Tag" && mark.name.toLowerCase() === label.toLowerCase()
+          )
+        ) {
+          return prevState
+        }
+
+        const type = "Tag"
+        const markId = `${type.toLowerCase()}-${label.replace(/\s+/g, "-").toLowerCase()}-${Date.now()}`
+
+        // Create new tag mark
+        newProject.marks = {
+          ...newProject.marks,
+          [markId]: { color: generatePastelColor(), type, name: label },
+        }
+
+        // Add occurrences for this new tag based on group occurrences
+        Object.entries(newProject.files).forEach(([fileName, file]) => {
+          const occs = file.occurrences || []
+          const newOccs = [...occs]
+          occs.forEach((occ) => {
+            if (group.marks.includes(occ.id)) {
+              newOccs.push({ id: markId, start: occ.start, end: occ.end, text: occ.text })
+            }
+          })
+          newProject.files[fileName] = { ...file, occurrences: dedupeOccurrences(newOccs) }
+        })
+
+        newState[projectName] = newProject
+        return newState
+      })
+    },
+    [projectName],
+  )
+
   const getMarksByGroup = useCallback(
     (groupId: string) => {
       const group = currentProject.groups?.[groupId]
@@ -1830,6 +1880,7 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
     removeMarkFromGroup,
     deleteGroup,
     updateGroupMarks,
+    saveGroupAsTag,
     refreshAllSearches,
     getMarksByGroup,
     getAllMarksForTabulation,

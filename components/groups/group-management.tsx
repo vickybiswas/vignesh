@@ -9,7 +9,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Plus, Edit, Trash2, Tag, Search } from "lucide-react"
+import { Plus, Edit, Trash2, Tag, Search, Save } from "lucide-react"
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 
 export function GroupManagement() {
   const {
@@ -27,6 +28,7 @@ export function GroupManagement() {
     deleteGroup,
     getMarksByGroup,
     updateGroupMarks,
+    saveGroupAsTag,
   } = useContext(ProjectContext)
 
   const [availableMarks, setAvailableMarks] = useState<Array<{ id: string; name: string; type: "Tag" | "Search" }>>([])
@@ -89,6 +91,35 @@ export function GroupManagement() {
     setSelectedMarks((prev) => (prev.includes(markId) ? prev.filter((id) => id !== markId) : [...prev, markId]))
   }
 
+  // Save Group as Tag state and handlers
+  const [isSaveTagDialogOpen, setIsSaveTagDialogOpen] = useState(false)
+  const [selectedGroupForSave, setSelectedGroupForSave] = useState<string | null>(null)
+  const [saveTagName, setSaveTagName] = useState("")
+  const [saveTagError, setSaveTagError] = useState("")
+
+  const handleSaveGroup = (groupId: string) => {
+    setSelectedGroupForSave(groupId)
+    setSaveTagName("")
+    setSaveTagError("")
+    setIsSaveTagDialogOpen(true)
+  }
+
+  const handleConfirmSaveTag = () => {
+    if (selectedGroupForSave && saveTagName.trim()) {
+      const name = saveTagName.trim()
+      // Check for duplicate tag name
+      const exists = availableMarks
+        .filter((m) => m.type === "Tag")
+        .some((m) => m.name.toLowerCase() === name.toLowerCase())
+      if (exists) {
+        setSaveTagError("A tag with this name already exists. Please choose a different name.")
+        return
+      }
+      saveGroupAsTag(selectedGroupForSave, name)
+      setIsSaveTagDialogOpen(false)
+    }
+  }
+
   return (
     <>
       <Card className="w-full">
@@ -132,6 +163,22 @@ export function GroupManagement() {
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
+                          {/* Save this group as a tag */}
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => handleSaveGroup(group.id)}
+                                >
+                                  <Save className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">Save this Group as a Tag</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -257,6 +304,30 @@ export function GroupManagement() {
               Cancel
             </Button>
             <Button onClick={handleUpdateGroup}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Save Group as Tag Dialog */}
+      <Dialog open={isSaveTagDialogOpen} onOpenChange={setIsSaveTagDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Save Group as Tag</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              placeholder="Tag name"
+              value={saveTagName}
+              onChange={(e) => { setSaveTagName(e.target.value); if (saveTagError) setSaveTagError(""); }}
+            />
+            {saveTagError && <p className="text-destructive text-sm mt-1">{saveTagError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSaveTagDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmSaveTag} disabled={!saveTagName.trim()}>
+              Save Tag
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
