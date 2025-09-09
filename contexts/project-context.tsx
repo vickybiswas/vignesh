@@ -100,8 +100,8 @@ interface ProjectContextType {
   setNewGroupName: (name: string) => void
   selectedGroupForEdit: string | null
   setSelectedGroupForEdit: (groupId: string | null) => void
-  contentRef: React.RefObject<HTMLDivElement>
-  fileInputRef: React.RefObject<HTMLInputElement>
+  contentRef: React.RefObject<HTMLDivElement | null>
+  fileInputRef: React.RefObject<HTMLInputElement | null>
   selection: { start: number; end: number } | null
   setSelection: (selection: { start: number; end: number } | null) => void
   contextMenuPosition: { x: number; y: number } | null
@@ -319,6 +319,8 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
   const [isFetchingSynonyms, setIsFetchingSynonyms] = useState<boolean>(false)
   const contentRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Queue a project/file switch until state contains the target project
+  const pendingSwitchRef = useRef<{ project?: string; file?: string } | null>(null)
 
   // Get list of project names
   const projectNames = useMemo(() => {
@@ -842,26 +844,112 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
           return response.text()
         })
         .then(text => {
-          try {
-            const uploadedState = JSON.parse(text) as AppState
-            setState(uploadedState)
-  
-            const firstProjectName = Object.keys(uploadedState)[0]
-            if (firstProjectName) {
-              setProjectName(firstProjectName)
-  
-              const firstFileName = Object.keys(uploadedState[firstProjectName].files || {})[0]
-              if (firstFileName) {
-                setActiveFile(firstFileName)
-              }
+          // Helper to queue switch and clean URL param
+          const finalize = (projectToSwitch: string, fileToActivate: string | undefined) => {
+            if (projectToSwitch) {
+              pendingSwitchRef.current = { project: projectToSwitch, file: fileToActivate }
             }
-  
-            // Analytics: record project state upload from URL
-            gtag.event({ action: 'upload_state_url', category: 'Project', label: uploadUrl })
-          } catch (error) {
-            console.error("Error parsing uploaded state from URL:", error)
-            alert("Invalid JSON file at provided URL.")
+            // Remove the upload param from the URL to avoid re-triggering on refresh
+            try {
+              const url = new URL(window.location.href)
+              url.searchParams.delete('upload')
+              window.history.replaceState({}, '', url.toString())
+            } catch {}
           }
+
+          // Try to parse as JSON first
+          try {
+            const parsed = JSON.parse(text)
+
+            // Case 1: Full AppState (object of projects)
+            const firstKey = parsed && typeof parsed === 'object' ? Object.keys(parsed)[0] : undefined
+            const looksLikeAppState = Boolean(
+              firstKey && parsed[firstKey] && typeof parsed[firstKey] === 'object' && parsed[firstKey].files && parsed[firstKey].marks
+            )
+            if (looksLikeAppState) {
+              const uploadedState = parsed as AppState
+              setState(uploadedState)
+              // Pick project to switch to:
+              // 1) explicit query (?project= or ?projectName=)
+              // 2) match from upload file name (e.g., vicky-research.json -> Vicky Research)
+              // 3) fallback to first key
+              const keys = Object.keys(uploadedState)
+              const fromParam = (params.get('project') || params.get('projectName') || '').trim()
+              const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+              let targetProject = ''
+              if (fromParam) {
+                const targetNorm = norm(fromParam)
+                targetProject = keys.find(k => norm(k) === targetNorm) || ''
+              }
+              if (!targetProject) {
+                try {
+                  const u = new URL(uploadUrl, window.location.origin)
+                  const base = decodeURIComponent(u.pathname.split('/').pop() || '').replace(/\.[^.]+$/, '')
+                  if (base) {
+                    const baseNorm = norm(base)
+                    targetProject = keys.find(k => norm(k) === baseNorm) || ''
+                  }
+                } catch {}
+              }
+              const firstProjectName = targetProject || keys[0]
+              const firstFileName = firstProjectName ? Object.keys(uploadedState[firstProjectName].files || {})[0] : undefined
+              gtag.event({ action: 'upload_state_url', category: 'Project', label: uploadUrl })
+              finalize(firstProjectName, firstFileName)
+              return
+            }
+
+            // Case 2: Single Project JSON (has files/marks at top level)
+            const looksLikeProject = parsed && typeof parsed === 'object' && parsed.files && parsed.marks
+            if (looksLikeProject) {
+              const projectObj = parsed as Project
+              // Try get name from query ?project= or from file name
+              const urlObj = new URL(uploadUrl, window.location.origin)
+              const suggestedNameFromParam = params.get('project') || params.get('projectName')
+              const suggestedNameFromPath = decodeURIComponent(urlObj.pathname.split('/').pop() || 'Imported Project').replace(/\.[^.]+$/, '')
+              const projectNameCandidate = (suggestedNameFromParam || suggestedNameFromPath || 'Imported Project').trim()
+
+              // Ensure unique name if conflict
+              let finalName = projectNameCandidate
+              if (state[finalName]) {
+                let i = 2
+                while (state[`${projectNameCandidate} (${i})`]) i++
+                finalName = `${projectNameCandidate} (${i})`
+              }
+
+              setState((prev) => ({ ...prev, [finalName]: projectObj }))
+              const firstFileName = Object.keys(projectObj.files || {})[0]
+              gtag.event({ action: 'upload_project_url', category: 'Project', label: uploadUrl })
+              finalize(finalName, firstFileName)
+              return
+            }
+
+            // If JSON but neither AppState nor Project, fall through to treat as plain text
+          } catch {
+            // Not JSON — treat as plain text file
+          }
+
+          // Case 3: Plain text file — create a new project with one file
+          const urlObj = new URL(uploadUrl, window.location.origin)
+          const baseName = decodeURIComponent(urlObj.pathname.split('/').pop() || 'imported.txt')
+          const fileName = baseName.includes('.') ? baseName : `${baseName}.txt`
+          const projectBase = baseName.replace(/\.[^.]+$/, '') || 'Imported Project'
+          let finalProjectName = projectBase
+          if (state[finalProjectName]) {
+            let i = 2
+            while (state[`${projectBase} (${i})`]) i++
+            finalProjectName = `${projectBase} (${i})`
+          }
+
+          const newProject: Project = {
+            files: {
+              [fileName]: { content: text, occurrences: [], dirty: true },
+            },
+            marks: {},
+            groups: {},
+          }
+          setState((prev) => ({ ...prev, [finalProjectName]: newProject }))
+          gtag.event({ action: 'upload_text_url', category: 'Project', label: uploadUrl })
+          finalize(finalProjectName, fileName)
         })
         .catch(error => {
           console.error("Upload fetch error:", error)
@@ -869,6 +957,26 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
         })
     }
   }, [])
+
+  // Apply any pending project/file switch once state contains the project
+  useEffect(() => {
+    const pending = pendingSwitchRef.current
+    if (!pending || !pending.project) return
+    const proj = pending.project
+    if (!state[proj]) return
+
+    // Proceed with the switch now that the project exists in state
+    setProjectName(proj)
+    setSelectedTagFilter("all")
+    setSearchTerm("")
+    if (pending.file && state[proj].files && state[proj].files[pending.file]) {
+      setActiveFile(pending.file)
+    } else {
+      const first = Object.keys(state[proj].files || {})[0] || ""
+      setActiveFile(first)
+    }
+    pendingSwitchRef.current = null
+  }, [state])
 
   const handleRemoveSearch = useCallback(
     (searchName: string) => {
@@ -1119,7 +1227,10 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
       } catch (e) {
         // Fallback: strip brackets/quotes and split on commas
         const stripped = content.replace(/[\[\]"\']+/g, '')
-        list = stripped.split(/,\s*/).map((w) => w.trim()).filter((w) => w)
+        list = stripped
+          .split(/,\s*/)
+          .map((w: string) => w.trim())
+          .filter((w: string) => Boolean(w))
       }
       // Normalize: remove the original term, dedupe, limit to 10
       const lowerTerm = searchTerm.toLowerCase()
@@ -1442,8 +1553,9 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
       setState((prevState) => {
         const newState = { ...prevState }
         // Use sampleState template for new project
-        const templateKey = Object.keys(sampleState)[0]
-        const templateProject = sampleState[templateKey]
+        const sample = sampleState as unknown as AppState
+        const templateKey = Object.keys(sample)[0]
+        const templateProject = sample[templateKey]
         // Deep clone to avoid mutation
         const newProject = JSON.parse(JSON.stringify(templateProject))
         newState[name] = newProject
@@ -1452,8 +1564,9 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
 
       setProjectName(name)
       // Initialize active file to first file in the template
-      const templateKey = Object.keys(sampleState)[0]
-      const fileNames = Object.keys(sampleState[templateKey].files)
+      const sample = sampleState as unknown as AppState
+      const templateKey = Object.keys(sample)[0]
+      const fileNames = Object.keys(sample[templateKey].files)
       setActiveFile(fileNames[0] || "")
       // Analytics: record project creation
       gtag.event({ action: 'create_project', category: 'Project', label: name })
