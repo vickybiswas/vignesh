@@ -125,25 +125,27 @@ export function ContentArea() {
         </Button>
         </form>
       </div>
-      {isEditing ? (
-        <Textarea
-          className="text-lg p-4 border rounded whitespace-pre-wrap h-full w-full overflow-auto font-mono"
-          value={currentFile?.content || ""}
-          onChange={(e) => handleContentChange(e.target.value)}
-          onBlur={() => setIsEditing(false)}
-          autoFocus
-        />
-        ) : (
-        <div
-          ref={contentRef}
-          className="text-lg p-4 border rounded relative whitespace-pre-wrap h-full overflow-auto"
-          onClick={(e) => { if (e.detail === 3) setIsEditing(true); }}
-          onContextMenu={handleContextMenu}
-          tabIndex={0}
-        >
-          {currentFile?.content ? renderContent() : null}
-        </div>
-      )}
+      <div className="flex-1 min-h-0">
+        {isEditing ? (
+          <Textarea
+            className="text-lg p-4 border rounded whitespace-pre-wrap h-full w-full min-h-0 overflow-auto font-mono resize-none"
+            value={currentFile?.content || ""}
+            onChange={(e) => handleContentChange(e.target.value)}
+            onBlur={() => setIsEditing(false)}
+            autoFocus
+          />
+          ) : (
+          <div
+            ref={contentRef}
+            className="text-lg p-4 border rounded relative whitespace-pre-wrap h-full overflow-auto"
+            onClick={(e) => { if (e.detail === 3) setIsEditing(true); }}
+            onContextMenu={handleContextMenu}
+            tabIndex={0}
+          >
+            {currentFile?.content ? renderContent() : null}
+          </div>
+        )}
+      </div>
 
       {/* Context Menu for Adding Tags */}
       <DropdownMenu open={!!contextMenuPosition} onOpenChange={() => setContextMenuPosition(null)}>

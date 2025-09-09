@@ -65,7 +65,7 @@ export function MainLayout({ children }: MainLayoutProps) {
           className="w-1 bg-gray-200 cursor-col-resize hover:bg-gray-300"
           onMouseDown={startDragLeft}
         />
-        <div className="flex-1 min-w-0 overflow-auto">
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
           <ContentArea />
         </div>
         <div
